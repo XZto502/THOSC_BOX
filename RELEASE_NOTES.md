@@ -20,9 +20,8 @@
 ---
 
 ### 🗺️ 下一版本预计实现功能
-1. **EXE 自定义图标**：提供个性化的应用图标打包，取代原有的 Java 默认咖啡杯图标。
-2. **角色与机体检测**：读取并显示玩家当前选择的角色（如博丽灵梦、雾雨魔理沙）和武器机体类型。
-3. **支持更多外传与衍生作品**：研究并适配官方弹幕联机、双人对战及外传作品（如《弹幕天邪鬼》、《秘封噩梦日记》、《刚欲异闻》等）。
+1. **角色与机体检测**：读取并显示玩家当前选择的角色（如博丽灵梦、雾雨魔理沙）和武器机体类型。
+2. **支持更多外传与衍生作品**：研究并适配官方弹幕联机、双人对战及外传作品（如《弹幕天邪鬼》、《秘封噩梦日记》、《刚欲异闻》等）。
 
 ---
 
@@ -46,9 +45,8 @@
 ---
 
 ### 🗺️ Planned Features for Next Release
-1. **Custom EXE Icon**: Replace the default Java cup icon with a customized executable icon.
-2. **Character & Shot Type Detection**: Read and display the active character (e.g., Reimu, Marisa) and selected weapon type.
-3. **Expand Spin-off & Versus Game Support**: Research and adapt memory layouts for other versus and spin-off titles (such as TH14.3, TH16.5, TH17.5).
+1. **Character & Shot Type Detection**: Read and display the active character (e.g., Reimu, Marisa) and selected weapon type.
+2. **Expand Spin-off & Versus Game Support**: Research and adapt memory layouts for other versus and spin-off titles (such as TH14.3, TH16.5, TH17.5).
 
 ---
 
@@ -72,6 +70,5 @@
 ---
 
 ### 🗺️ 次期バージョンで実装予定の機能
-1. **カスタム EXE アイコンの設定**：デフォルトの Java アイコンをカスタムアイコンに設定。
-2. **自機キャラクター＆装備タイプの検出**：プレイヤーが選択している自機（霊梦、魔理沙など）および装備タイプ（アタックタイプなど）を検出して表示。
-3. **対戦・外伝作品のサポート拡充**：公式弾幕対戦、外伝作品（弾幕アマノジャク、秘封ナイトメアダイアリー、剛欲異聞など）のメモリ構造を解析・対応。
+1. **自機キャラクター＆装備タイプの検出**：プレイヤーが選択している自機（霊梦、魔理沙など）および装備タイプ（アタックタイプなど）を検出して表示。
+2. **対戦・外伝作品のサポート拡充**：公式弾幕対戦、外伝作品（弾幕アマノジャク、秘封ナイトメアダイアリー、剛欲異聞など）のメモリ構造を解析・対応。
