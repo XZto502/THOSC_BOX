@@ -61,6 +61,9 @@ data class GameConfig(
     val bombOffset: List<String>,
     val stageOffset: List<String> = emptyList(),
     val stageStartsFrom: Int = 1,
+    val bossManagerOffset: String? = null,
+    val bossIndexOffset: String? = null,
+    val bossSpellIdOffset: String? = null,
     val scoreType: String = "int32",
     val missType: String = "int32",
     val bombType: String = "int32",
@@ -271,6 +274,78 @@ fun readMemoryValue(processHandle: WinNT.HANDLE, address: Long, type: String, na
 
 fun hexToLong(hex: String): Long = hex.removePrefix("0x").toLong(16)
 
+fun readActiveSpellId(processHandle: WinNT.HANDLE, baseAddr: Long, config: GameConfig): Int? {
+    val managerOffset = config.bossManagerOffset ?: return null
+    val indexOffset = config.bossIndexOffset ?: return null
+    val spellIdOffset = config.bossSpellIdOffset ?: return null
+
+    val bossManagerPtr = readPointer(processHandle, baseAddr + hexToLong(managerOffset))
+    if (bossManagerPtr < 0x10000L || bossManagerPtr >= 0xFFFF0000L) return null
+
+    val bossIndex = readMemoryValue(processHandle, bossManagerPtr + hexToLong(indexOffset), "int32", "BossIndex").toInt()
+    if (bossIndex < 0 || bossIndex > 100) return null
+
+    val activeBossPtr = readPointer(processHandle, bossManagerPtr + bossIndex * 4)
+    if (activeBossPtr < 0x10000L || activeBossPtr >= 0xFFFF0000L) return null
+
+    val spellId = readMemoryValue(processHandle, activeBossPtr + hexToLong(spellIdOffset), "int32", "SpellID").toInt()
+    return spellId
+}
+
+fun getSpellName(gameId: String, spellId: Int): String {
+    val th14Map = mapOf(
+        100 to "辉针「鬼之杰作」 (Shining Needle \"Oni's Masterpiece\")",
+        101 to "辉针「鬼之杰作」 (Shining Needle \"Oni's Masterpiece\")",
+        102 to "辉针「鬼之杰作之山」 (Shining Needle \"Oni's Masterpiece of Needle Mountain\")",
+        103 to "辉针「鬼之杰作之山」 (Shining Needle \"Oni's Masterpiece of Needle Mountain\")",
+        104 to "小槌「变得大吧」 (Grow Bigger, Little Mallet)",
+        105 to "小槌「变得大吧」 (Grow Bigger, Little Mallet)",
+        106 to "小槌「变得更大吧」 (Grow Even Bigger, Little Mallet)",
+        107 to "小槌「变得更大吧」 (Grow Even Bigger, Little Mallet)",
+        108 to "「打出小槌的袭击」 (Attack of the Shinmyoumaru)",
+        109 to "「打出小槌的袭击」 (Attack of the Shinmyoumaru)",
+        110 to "「逆袭的打出小槌」 (Counterattack of the Shinmyoumaru)",
+        111 to "「逆袭的打出小槌」 (Counterattack of the Shinmyoumaru)",
+        112 to "「一寸之子的巨大反击」 (Giant Counterattack of the One-Inch Boy)",
+        113 to "「一寸之子的巨大反击」 (Giant Counterattack of the One-Inch Boy)",
+        114 to "「小人国之乱」 (Rebellion of the Kobito)",
+        115 to "「小人国之乱」 (Rebellion of the Kobito)",
+        116 to "「七个小人」 (Seven Kobitos)",
+        117 to "「七个小人」 (Seven Kobitos)",
+        118 to "「壁橱中的小人七个」 (Seven Kobitos in the Closet)",
+        119 to "「壁橱中的小人七个」 (Seven Kobitos in the Closet)"
+    )
+    val th16Map = mapOf(
+        106 to "「背后的秘仪」 (Backside Ceremony)",
+        107 to "「背后的秘仪」 (Backside Ceremony)",
+        108 to "秘仪「后门之魂」 (Secret Ceremony \"Behind-Door Souls\")",
+        109 to "秘仪「后门之魂」 (Secret Ceremony \"Behind-Door Souls\")",
+        110 to "秘仪「背叛的樱吹雪」 (Secret Ceremony \"Betrayal Cherry Blossom Blizzard\")",
+        111 to "秘仪「背叛的樱吹雪」 (Secret Ceremony \"Betrayal Cherry Blossom Blizzard\")",
+        112 to "秘仪「里七星」 (Secret Ceremony \"Reverse Seven Stars\")",
+        113 to "秘仪「里七星」 (Secret Ceremony \"Reverse Seven Stars\")"
+    )
+    val th17Map = mapOf(
+        84 to "线形「线性雕刻物」 (Linear \"Linear Sculpture\")",
+        85 to "线形「线性雕刻物」 (Linear \"Linear Sculpture\")",
+        86 to "埴轮「偶像防卫队」 (Haniwa \"Idol Defense Force\")",
+        87 to "埴轮「偶像防卫队」 (Haniwa \"Idol Defense Force\")"
+    )
+    val th18Map = mapOf(
+        84 to "「无主之物的买卖」 (Trading of Ownerless Goods)",
+        85 to "「无主之物的买卖」 (Trading of Ownerless Goods)",
+        86 to "「弹幕无产阶级化」 (Danmaku Proletariat)",
+        87 to "「弹幕无产阶级化」 (Danmaku Proletariat)"
+    )
+    return when (gameId) {
+        "th14" -> th14Map[spellId] ?: "Spell ID $spellId"
+        "th16" -> th16Map[spellId] ?: "Spell ID $spellId"
+        "th17" -> th17Map[spellId] ?: "Spell ID $spellId"
+        "th18" -> th18Map[spellId] ?: "Spell ID $spellId"
+        else -> "Spell ID $spellId"
+    }
+}
+
 fun main() {
 
     // 1. Read JSON configuration file from classpath
@@ -343,6 +418,7 @@ fun main() {
                 println("Miss offset: ${activeGameConfig.missOffset}")
                 println("Bomb offset: ${activeGameConfig.bombOffset}")
                 println("Stage offset: ${activeGameConfig.stageOffset}")
+                println("Boss manager offset: ${activeGameConfig.bossManagerOffset}")
 
                 // Send game index to VRChat for logic checking in the Animator
                 val gameIndex = games.indexOf(activeGameConfig)
@@ -353,6 +429,7 @@ fun main() {
                 var lastMiss = -1
                 var lastBomb = -1
                 var lastStageValue = -1
+                var lastSpellId = -2
 
                 // Session variables for incremental delta-tracking
                 var lastRawLives: Int? = null
@@ -481,23 +558,39 @@ fun main() {
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouScore", listOf(score)))
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouMiss", listOf(cumulativeMisses)))
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouBomb", listOf(cumulativeBombs)))
+                    // Read active spell card ID
+                    val activeSpellId = readActiveSpellId(processHandle, baseAddr, activeGameConfig)
+                    // spellId is valid if it is not null and not equal to -1 (inactive value in ZUN games)
+                    val spellActive = activeSpellId != null && activeSpellId != -1
+                    val spellStr = if (spellActive) getSpellName(activeGameConfig.id, activeSpellId!!) else null
+
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouStage", listOf(oscStageValue)))
+                    oscSender.send(OSCMessage("/avatar/parameters/TouhouSpellID", listOf(activeSpellId ?: -1)))
+                    oscSender.send(OSCMessage("/avatar/parameters/TouhouSpellActive", listOf(spellActive)))
+                    oscSender.send(OSCMessage("/avatar/parameters/TouhouSpellName", listOf(spellStr ?: "")))
+
+                    val stageAndSpellStr = if (spellActive && spellStr != null) {
+                        "$stageStr | Spell: $spellStr"
+                    } else {
+                        stageStr
+                    }
 
                     // Real-time console output (prevent frequent flashing, updates on change or every 500ms)
                     val now = System.currentTimeMillis()
-                    if (now - lastPrintTime >= 500 || score != lastScore || cumulativeMisses != lastMiss || cumulativeBombs != lastBomb || rawStage != lastStageValue) {
-                        print("\r[Live Data] Game: ${activeGameConfig.name} | Stage: $stageStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs        ")
+                    if (now - lastPrintTime >= 500 || score != lastScore || cumulativeMisses != lastMiss || cumulativeBombs != lastBomb || rawStage != lastStageValue || (activeSpellId ?: -1) != lastSpellId) {
+                        print("\r[Live Data] Game: ${activeGameConfig.name} | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs        ")
                         System.out.flush()
                         lastPrintTime = now
                         lastScore = score
                         lastMiss = cumulativeMisses
                         lastBomb = cumulativeBombs
                         lastStageValue = rawStage
+                        lastSpellId = activeSpellId ?: -1
                     }
 
                     // Send status message to VRChat Chatbox every 2 seconds (2000ms)
                     if (now - lastChatboxTime >= 2000) {
-                        val chatboxText = "Game: ${activeGameConfig.name} | Stage: $stageStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
+                        val chatboxText = "Game: ${activeGameConfig.name} | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
                         oscSender.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
                         lastChatboxTime = now
                     }
