@@ -2,9 +2,6 @@
 
 ## 🇨🇳 中文 (Chinese)
 
-### 📌 项目简介
-**THOSC_BOX** 是一款专为东方 Project (Touhou Project) 玩家设计的开源 VRChat OSC 桥接工具。它可以实时读取运行中的东方 Project 游戏内存数据，并通过 OSC 协议将玩家的实时战绩、关卡状态以及游戏难度发送至 VRChat，显示在您角色的 Avatar 参数及上方 Chatbox 聊天框中。
-
 ### 🌟 当前已实现功能
 1. **多款游戏深度适配**：配置并支持全系列 15 款官方 mainline 作品的内存读取：
    * 支持作品：TH06 (红魔乡)、TH07 (妖妖梦)、TH08 (永夜抄)、TH09 (花映冢)、TH10 (风神录)、TH11 (地灵殿)、TH12 (星莲船)、TH13 (神灵庙)、TH14 (辉针城)、TH15 (绀珠传)、TH16 (天空璋)、TH17 (鬼形兽)、TH18 (虹龙洞)、TH19 (兽王园)、TH20 (锦上京)。
@@ -31,9 +28,6 @@
 
 ## 🇺🇸 English
 
-### 📌 Project Introduction
-**THOSC_BOX** is an open-source VRChat OSC bridge tool tailored for Touhou Project players. It reads running Touhou game memory in real-time and transmits live play data—including scores, death counts, bomb usages, current stages, and play difficulties—directly to VRChat via the OSC protocol, rendering them on your Avatar parameters and Chatbox.
-
 ### 🌟 Currently Implemented Features
 1. **Wide Game Compatibility**: Out-of-the-box support for 15 mainline Touhou Project titles:
    * Supported Games: TH06, TH07, TH08, TH09, TH10, TH11, TH12, TH13, TH14, TH15, TH16, TH17, TH18, TH19, and TH20.
@@ -59,9 +53,6 @@
 ---
 
 ## 🇯🇵 日本語 (Japanese)
-
-### 📌 プロジェクト紹介
-**THOSC_BOX** は、東方Projectのプレイヤー向けに設計されたオープンソースの VRChat OSC ブリッジツールです。起動中の東方Projectゲームのメモリデータをリアルタイムに読み込み、スコア、ミス（被弾数）、ボム使用数、現在のステージ、および難易度を OSC プロトコル経由で VRChat に送信し、アバターパラメータや Chatbox にリアルタイム表示します。
 
 ### 🌟 現在実装されている機能
 1. **多数の東方作品に対応**：計15の公式メインライン作品のメモリ読み込みに対応：
