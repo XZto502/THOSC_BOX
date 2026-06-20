@@ -6,8 +6,8 @@
 **THOSC_BOX** 是一款专为东方 Project (Touhou Project) 玩家设计的开源 VRChat OSC 桥接工具。它可以实时读取运行中的东方 Project 游戏内存数据，并通过 OSC 协议将玩家的实时战绩、关卡状态以及游戏难度发送至 VRChat，显示在您角色的 Avatar 参数及上方 Chatbox 聊天框中。
 
 ### 🌟 当前已实现功能
-1. **多款游戏深度适配**：配置并支持全系列 13 款官方 mainline 作品的内存读取：
-   * 支持作品：TH06 (红魔乡)、TH07 (妖妖梦)、TH08 (永夜抄)、TH10 (风神录)、TH11 (地灵殿)、TH12 (星莲船)、TH13 (神灵庙)、TH14 (辉针城)、TH15 (绀珠传)、TH16 (天空璋)、TH17 (鬼形兽)、TH18 (虹龙洞)、TH20 (锦上京)。
+1. **多款游戏深度适配**：配置并支持全系列 15 款官方 mainline 作品的内存读取：
+   * 支持作品：TH06 (红魔乡)、TH07 (妖妖梦)、TH08 (永夜抄)、TH09 (花映冢)、TH10 (风神录)、TH11 (地灵殿)、TH12 (星莲船)、TH13 (神灵庙)、TH14 (辉针城)、TH15 (绀珠传)、TH16 (天空璋)、TH17 (鬼形兽)、TH18 (虹龙洞)、TH19 (兽王园)、TH20 (锦上京)。
 2. **实时核心数据同步**：
    * **分数 (Score)**：实时提取并自动进行倍率还原。
    * **死亡数 (Miss) 与炸弹数 (Bomb) 增量计算**：在关卡重启或新游戏时自动清零，支持增量统计（非单纯读取剩余生命值），并针对 TH10/TH11 消耗 Power 释放 Bomb 的机制进行了判定优化。
@@ -24,9 +24,9 @@
 
 ### 🗺️ 下一版本预计实现功能
 1. **适配部分游戏符卡**：实现部分游戏 Boss 符卡战检测，提取活跃的符卡 ID 并显示为对应的中英文符卡名称。
-2. **EXE 自定义图标**：提供个性化的应用图标打包（如 Windows 默认应用图标等），取代原有的 Java 默认咖啡杯图标。
+2. **EXE 自定义图标**：提供个性化的应用图标打包，取代原有的 Java 默认咖啡杯图标。
 3. **角色与机体检测**：读取并显示玩家当前选择的角色（如博丽灵梦、雾雨魔理沙）和武器机体类型。
-4. **支持更多外传与衍生作品**：研究并适配 TH09 (花映冢)、TH19 (兽王园) 以及其他官方弹幕联机/外传作品。
+4. **支持更多外传与衍生作品**：研究并适配官方弹幕联机、双人对战及外传作品（如《弹幕天邪鬼》、《秘封噩梦日记》、《刚欲异闻》等）。
 5. **可视化配置界面 (GUI)**：提供轻量级窗口界面，允许用户自定义 OSC 端口、Chatbox 发送格式、是否开启特定参数广播等。
 
 ---
@@ -37,8 +37,8 @@
 **THOSC_BOX** is an open-source VRChat OSC bridge tool tailored for Touhou Project players. It reads running Touhou game memory in real-time and transmits live play data—including scores, death counts, bomb usages, current stages, and play difficulties—directly to VRChat via the OSC protocol, rendering them on your Avatar parameters and Chatbox.
 
 ### 🌟 Currently Implemented Features
-1. **Wide Game Compatibility**: Out-of-the-box support for 13 mainline Touhou Project titles:
-   * Supported Games: TH06, TH07, TH08, TH10, TH11, TH12, TH13, TH14, TH15, TH16, TH17, TH18, and TH20.
+1. **Wide Game Compatibility**: Out-of-the-box support for 15 mainline Touhou Project titles:
+   * Supported Games: TH06, TH07, TH08, TH09, TH10, TH11, TH12, TH13, TH14, TH15, TH16, TH17, TH18, TH19, and TH20.
 2. **Real-time Core Data Sync**:
    * **Score**: Real-time extraction with auto-multiplier recovery.
    * **Incremental Miss & Bomb Counters**: Incremental statistics (resets on new game/restart) rather than remaining lives/bombs. Specially optimized for TH10/TH11's unique power-consuming bomb mechanic.
@@ -55,9 +55,9 @@
 
 ### 🗺️ Planned Features for Next Release
 1. **Spell Card Display for Select Games**: Detect active Boss spell card battles and display corresponding spell card names.
-2. **Custom EXE Icon**: Replace the default Java cup icon with a customized executable icon (such as the generic Windows application icon).
+2. **Custom EXE Icon**: Replace the default Java cup icon with a customized executable icon.
 3. **Character & Shot Type Detection**: Read and display the active character (e.g., Reimu, Marisa) and selected weapon type.
-4. **Expand Spin-off & Versus Game Support**: Research and adapt memory layouts for TH09 (Phantasmagoria of Flower View), TH19 (Unfinished Dream of All Living Ghost), and other versus titles.
+4. **Expand Spin-off & Versus Game Support**: Research and adapt memory layouts for other versus and spin-off titles (such as TH14.3, TH16.5, TH17.5).
 5. **Graphical Configuration GUI**: Provide a lightweight user interface to easily customize OSC ports, Chatbox formatting, and toggles for parameter broadcasts.
 
 ---
@@ -68,16 +68,16 @@
 **THOSC_BOX** は、東方Projectのプレイヤー向けに設計されたオープンソースの VRChat OSC ブリッジツールです。起動中の東方Projectゲームのメモリデータをリアルタイムに読み込み、スコア、ミス（被弾数）、ボム使用数、現在のステージ、および難易度を OSC プロトコル経由で VRChat に送信し、アバターパラメータや Chatbox にリアルタイム表示します。
 
 ### 🌟 現在実装されている機能
-1. **多数の東方作品に対応**：計13の公式メインライン作品のメモリ読み込みに対応：
-   * 対応作品：東方紅魔郷 (TH06)、東方妖々夢 (TH07)、東方永夜抄 (TH08)、東方风神録 (TH10)、东方地霊殿 (TH11)、東方星蓮船 (TH12)、東方神霊廟 (TH13)、東方辉针城 (TH14)、東方绀珠伝 (TH15)、東方天空璋 (TH16)、東方鬼形獣 (TH17)、東方虹龍洞 (TH18)、東方錦上京 (TH20)。
+1. **多数の東方作品に対応**：計15の公式メインライン作品のメモリ読み込みに対応：
+   * 対応作品：東方紅魔郷 (TH06)、東方妖々夢 (TH07)、東方永夜抄 (TH08)、東方花映塚 (TH09)、東方風神録 (TH10)、東方地霊殿 (TH11)、東方星蓮船 (TH12)、東方神霊廟 (TH13)、東方輝針城 (TH14)、東方紺珠伝 (TH15)、東方天空璋 (TH16)、東方鬼形獣 (TH17)、東方虹龍洞 (TH18)、東方獣王園 (TH19)、東方錦上京 (TH20)。
 2. **リアルタイムなコアデータ同期**：
    * **スコア (Score)**：メモリからスコアを取得し、ゲームごとの倍率を自動で復元。
-   * **ミス (Miss) とボム (Bomb) のインクリメンタル集計**：残機・残ボムの単純取得ではなく、ゲーム開始・リトライ時に自動リセットされる累計被弾数・ボム使用数を集計。TH10/TH11 のパワー消費型ボムも最適化判定。
+   * **ミス (Miss) とボム (Bomb) のインクリメンタル集計**：残機・残ボムの単純取得ではなく、ゲーム開始・リトライ時に自动リセットされる累計被弾数・ボム使用数を集計。TH10/TH11 のパワー消費型ボムも最適化判定。
    * **現在のステージ (Stage)**：進行度を判定し、`Stage 1-6` や `Extra`、`Phantasm` などに標準化して表示。
-   * **難易度 (Difficulty)**：現在の難易度（Easy, Normal, Hard, Lunatic, Extra, Phantasm）を自动取得。
+   * **難易度 (Difficulty)**：現在の難易度（Easy, Normal, Hard, Lunatic, Extra, Phantasm）を自動取得。
 3. **VRChat チャットボックス＆アバターパラメータ連携**：
    * 2秒ごと（レートリミット保護）にステータステキストを送信：`Game: <ゲーム名> [<難易度>] | Stage: <ステージ> | Score: <スコア> | Miss: <被弾数> | Bomb: <ボム数>`。
-   * 標準的な OSC アバターパラメータをブロードキャストし、アバター内のステータス表示ギミックと連動可能。
+   * 标准的な OSC アバターパラメータをブロードキャストし、アバター内のステータス表示ギミックと連動可能。
 4. **ASLR 対応とポータブル EXE リリース**：
    * Steam版の ASLR（アドレス空間配置のランダム化）モジュールベース自動解析。
    * インストール不要のポータブル EXE バージョン。
@@ -86,7 +86,7 @@
 
 ### 🗺️ 次期バージョンで実装予定の機能
 1. **一部作品におけるスペルカード名表示への対応**：ボス戦におけるスペルカード発動の検出とスペカ名表示（日英中対応）の対応。
-2. **カスタム EXE アイコンの設定**：デフォルトの Java アイコンを Windows 標準のアプリアイコン等のカスタムアイコンに設定。
+2. **カスタム EXE アイコンの設定**：デフォルトの Java アイコンをカスタムアイコンに設定。
 3. **自機キャラクター＆装備タイプの検出**：プレイヤーが選択している自機（霊夢、魔理沙など）および装備タイプ（アタックタイプなど）を検出して表示。
-4. **対戦・外伝作品のサポート拡充**：東方花映塚 (TH09) や東方獣王園 (TH19) などの対戦作品のメモリ構造を解析・対応。
+4. **対戦・外伝作品のサポート拡充**：公式弾幕対戦、外伝作品（弾幕アマノジャク、秘封ナイトメアダイアリー、剛欲異聞など）のメモリ構造を解析・対応。
 5. **GUI（グラフィカル設定画面）の提供**：OSC ポートの設定、Chatbox の送信フォーマットのカスタマイズ、特定パラメータの放送オン・オフなどを簡単に行える設定ウィンドウを実装。
