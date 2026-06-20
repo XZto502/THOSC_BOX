@@ -13,9 +13,8 @@
 3. **VRChat 深度联动**：
    * 每 2 秒（2000ms 频率限制防护）向 VRChat Chatbox 自动推送状态文本：`Game: <游戏名> [<难度>] | Stage: <关卡> | Score: <分数> | Miss: <死亡数> | Bomb: <炸弹数>`。
    * 广播标准 OSC Avatar 参数，支持玩家在 VRChat 虚拟形象（Animator）中制作对应的实时状态面板。
-4. **ASLR 兼容与绿色发布**：
+4. **ASLR 兼容**：
    * 完美适配 Steam 版本的 ASLR 动态模块基址解析。
-   * 打包为绿色免安装 EXE，即开即用。
 
 ---
 
@@ -38,9 +37,8 @@
 3. **VRChat Chatbox & Parameter Integration**:
    * Sends formatted text to VRChat Chatbox every 2 seconds (with rate-limit protection): `Game: <Name> [<Difficulty>] | Stage: <Stage> | Score: <Score> | Miss: <Miss> | Bomb: <Bomb>`.
    * Broadcasts standard OSC Avatar parameters to drive real-time dashboard UI in your Avatar's Animator.
-4. **ASLR Compatibility & Native EXE Release**:
+4. **ASLR Compatibility**:
    * Dynamic base address resolution to fully support Steam versions with ASLR enabled.
-   * Packaged as a portable standalone EXE.
 
 ---
 
@@ -63,9 +61,8 @@
 3. **VRChat チャットボックス＆アバターパラメータ連携**：
    * 2秒ごと（レートリミット保護）にステータステキストを送信：`Game: <ゲーム名> [<難易度>] | Stage: <ステージ> | Score: <スコア> | Miss: <被弾数> | Bomb: <ボム数>`。
    * 标准的な OSC アバターパラメータをブロードキャストし、アバター内のステータス表示ギミックと連動可能。
-4. **ASLR 対応とポータブル EXE リリース**：
+4. **ASLR 対応**：
    * Steam版の ASLR（アドレス空間配置のランダム化）モジュールベース自動解析。
-   * インストール不要のポータブル EXE バージョン。
 
 ---
 
