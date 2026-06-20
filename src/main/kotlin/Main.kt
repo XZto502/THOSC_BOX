@@ -64,6 +64,7 @@ data class GameConfig(
     val bossManagerOffset: String? = null,
     val bossIndexOffset: String? = null,
     val bossSpellIdOffset: String? = null,
+    val activeSpellOffset: List<String>? = null,
     val scoreType: String = "int32",
     val missType: String = "int32",
     val bombType: String = "int32",
@@ -275,6 +276,13 @@ fun readMemoryValue(processHandle: WinNT.HANDLE, address: Long, type: String, na
 fun hexToLong(hex: String): Long = hex.removePrefix("0x").toLong(16)
 
 fun readActiveSpellId(processHandle: WinNT.HANDLE, baseAddr: Long, config: GameConfig): Int? {
+    val activeSpellOffset = config.activeSpellOffset
+    if (activeSpellOffset != null && activeSpellOffset.isNotEmpty()) {
+        val addr = resolveAddressPath(processHandle, baseAddr, activeSpellOffset, "ActiveSpellID")
+        if (addr == 0L) return null
+        return readMemoryValue(processHandle, addr, "int32", "ActiveSpellID").toInt()
+    }
+
     val managerOffset = config.bossManagerOffset ?: return null
     val indexOffset = config.bossIndexOffset ?: return null
     val spellIdOffset = config.bossSpellIdOffset ?: return null
@@ -415,7 +423,11 @@ fun main() {
                 println("Miss offset: ${activeGameConfig.missOffset}")
                 println("Bomb offset: ${activeGameConfig.bombOffset}")
                 println("Stage offset: ${activeGameConfig.stageOffset}")
-                println("Boss manager offset: ${activeGameConfig.bossManagerOffset}")
+                if (activeGameConfig.activeSpellOffset != null) {
+                    println("Active spell offset: ${activeGameConfig.activeSpellOffset}")
+                } else {
+                    println("Boss manager offset: ${activeGameConfig.bossManagerOffset}")
+                }
 
                 // Send game index to VRChat for logic checking in the Animator
                 val gameIndex = games.indexOf(activeGameConfig)
