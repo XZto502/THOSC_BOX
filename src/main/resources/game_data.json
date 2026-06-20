@@ -13,6 +13,8 @@
     "missType": "byte",
     "bombType": "byte",
     "scoreMultiplier": 1,
+    "difficultyOffset": ["0x0029BCB0"],
+    "difficultyType": "byte",
     "onSteam": false
   },
   {
@@ -29,6 +31,8 @@
     "missType": "float",
     "bombType": "float",
     "scoreMultiplier": 1,
+    "difficultyOffset": ["0x00226280"],
+    "difficultyType": "int32",
     "onSteam": false
   },
   {
@@ -45,6 +49,8 @@
     "missType": "float",
     "bombType": "float",
     "scoreMultiplier": 1,
+    "difficultyOffset": ["0x0013CE891"],
+    "difficultyType": "byte",
     "onSteam": false
   },
   {
@@ -77,6 +83,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x00074C74"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -93,6 +101,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x000A5720"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -109,6 +119,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x000AEBD0"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -125,6 +137,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x000BE7C4"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -145,6 +159,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x000F5834"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -161,6 +177,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x000E7410"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -181,6 +199,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x0009F274"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -201,6 +221,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x000B5A00"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -221,6 +243,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 10,
+    "difficultyOffset": ["0x000CCD00"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {
@@ -237,6 +261,8 @@
     "missType": "int32",
     "bombType": "int32",
     "scoreMultiplier": 1,
+    "difficultyOffset": ["0x001B0A60"],
+    "difficultyType": "int32",
     "onSteam": true
   },
   {

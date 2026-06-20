@@ -65,6 +65,8 @@ data class GameConfig(
     val bossIndexOffset: String? = null,
     val bossSpellIdOffset: String? = null,
     val activeSpellOffset: List<String>? = null,
+    val difficultyOffset: List<String> = emptyList(),
+    val difficultyType: String = "int32",
     val scoreType: String = "int32",
     val missType: String = "int32",
     val bombType: String = "int32",
@@ -351,6 +353,18 @@ fun getSpellName(gameId: String, spellId: Int): String {
     }
 }
 
+fun getDifficultyName(gameId: String, difficulty: Int): String {
+    return when (difficulty) {
+        0 -> "Easy"
+        1 -> "Normal"
+        2 -> "Hard"
+        3 -> "Lunatic"
+        4 -> "Extra"
+        5 -> if (gameId == "th07") "Phantasm" else "Difficulty $difficulty"
+        else -> "Difficulty $difficulty"
+    }
+}
+
 fun main() {
 
     // 1. Read JSON configuration file from classpath
@@ -428,6 +442,9 @@ fun main() {
                 } else {
                     println("Boss manager offset: ${activeGameConfig.bossManagerOffset}")
                 }
+                if (activeGameConfig.difficultyOffset.isNotEmpty()) {
+                    println("Difficulty offset: ${activeGameConfig.difficultyOffset}")
+                }
 
                 // Send game index to VRChat for logic checking in the Animator
                 val gameIndex = games.indexOf(activeGameConfig)
@@ -471,6 +488,11 @@ fun main() {
                     } else {
                         0L
                     }
+                    val difficultyAddr = if (activeGameConfig.difficultyOffset.isNotEmpty()) {
+                        resolveAddressPath(processHandle, baseAddr, activeGameConfig.difficultyOffset, "Difficulty")
+                    } else {
+                        0L
+                    }
 
                     // Read memory values
                     val rawScore = readMemoryValue(processHandle, scoreAddr, activeGameConfig.scoreType, "Score").toLong()
@@ -492,6 +514,12 @@ fun main() {
                         readMemoryValue(processHandle, stageAddr, "int32", "Stage").toInt()
                     } else {
                         0
+                    }
+
+                    val rawDifficulty = if (difficultyAddr != 0L) {
+                        readMemoryValue(processHandle, difficultyAddr, activeGameConfig.difficultyType, "Difficulty").toInt()
+                    } else {
+                        -1
                     }
 
                     val stageIndex = rawStage - activeGameConfig.stageStartsFrom
@@ -562,11 +590,25 @@ fun main() {
                     }
 
                     // Construct and send OSC messages
+                    val difficultyStr = if (rawDifficulty in 0..10) {
+                        getDifficultyName(activeGameConfig.id, rawDifficulty)
+                    } else {
+                        null
+                    }
+                    val gameNameWithDiff = if (difficultyStr != null) {
+                        "${activeGameConfig.name} [$difficultyStr]"
+                    } else {
+                        activeGameConfig.name
+                    }
+
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouGameID", listOf(gameIndex)))
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouGameName", listOf(activeGameConfig.name)))
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouScore", listOf(score)))
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouMiss", listOf(cumulativeMisses)))
                     oscSender.send(OSCMessage("/avatar/parameters/TouhouBomb", listOf(cumulativeBombs)))
+                    oscSender.send(OSCMessage("/avatar/parameters/TouhouDifficulty", listOf(rawDifficulty)))
+                    oscSender.send(OSCMessage("/avatar/parameters/TouhouDifficultyName", listOf(difficultyStr ?: "")))
+
                     // Read active spell card ID
                     val activeSpellId = readActiveSpellId(processHandle, baseAddr, activeGameConfig)
                     // spellId is valid if it is not null and not equal to -1 (inactive value in ZUN games)
@@ -587,7 +629,7 @@ fun main() {
                     // Real-time console output (prevent frequent flashing, updates on change or every 500ms)
                     val now = System.currentTimeMillis()
                     if (now - lastPrintTime >= 500 || score != lastScore || cumulativeMisses != lastMiss || cumulativeBombs != lastBomb || rawStage != lastStageValue || (activeSpellId ?: -1) != lastSpellId) {
-                        print("\r[Live Data] Game: ${activeGameConfig.name} | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs        ")
+                        print("\r[Live Data] Game: $gameNameWithDiff | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs        ")
                         System.out.flush()
                         lastPrintTime = now
                         lastScore = score
@@ -599,7 +641,7 @@ fun main() {
 
                     // Send status message to VRChat Chatbox every 2 seconds (2000ms)
                     if (now - lastChatboxTime >= 2000) {
-                        val chatboxText = "Game: ${activeGameConfig.name} | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
+                        val chatboxText = "Game: $gameNameWithDiff | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
                         oscSender.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
                         lastChatboxTime = now
                     }

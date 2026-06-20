@@ -75,6 +75,7 @@ tasks.register<Exec>("jpackage") {
         "--type", "app-image",
         "--dest", outputDir.absolutePath,
         "--java-options", "-Dfile.encoding=UTF-8",
-        "--win-console"
+        "--win-console",
+        "--icon", file("windows_default.ico").absolutePath
     )
 }
