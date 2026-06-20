@@ -23,11 +23,9 @@
 ---
 
 ### 🗺️ 下一版本预计实现功能
-1. **适配部分游戏符卡**：实现部分游戏 Boss 符卡战检测，提取活跃的符卡 ID 并显示为对应的中英文符卡名称。
-2. **EXE 自定义图标**：提供个性化的应用图标打包，取代原有的 Java 默认咖啡杯图标。
-3. **角色与机体检测**：读取并显示玩家当前选择的角色（如博丽灵梦、雾雨魔理沙）和武器机体类型。
-4. **支持更多外传与衍生作品**：研究并适配官方弹幕联机、双人对战及外传作品（如《弹幕天邪鬼》、《秘封噩梦日记》、《刚欲异闻》等）。
-5. **可视化配置界面 (GUI)**：提供轻量级窗口界面，允许用户自定义 OSC 端口、Chatbox 发送格式、是否开启特定参数广播等。
+1. **EXE 自定义图标**：提供个性化的应用图标打包，取代原有的 Java 默认咖啡杯图标。
+2. **角色与机体检测**：读取并显示玩家当前选择的角色（如博丽灵梦、雾雨魔理沙）和武器机体类型。
+3. **支持更多外传与衍生作品**：研究并适配官方弹幕联机、双人对战及外传作品（如《弹幕天邪鬼》、《秘封噩梦日记》、《刚欲异闻》等）。
 
 ---
 
@@ -54,11 +52,9 @@
 ---
 
 ### 🗺️ Planned Features for Next Release
-1. **Spell Card Display for Select Games**: Detect active Boss spell card battles and display corresponding spell card names.
-2. **Custom EXE Icon**: Replace the default Java cup icon with a customized executable icon.
-3. **Character & Shot Type Detection**: Read and display the active character (e.g., Reimu, Marisa) and selected weapon type.
-4. **Expand Spin-off & Versus Game Support**: Research and adapt memory layouts for other versus and spin-off titles (such as TH14.3, TH16.5, TH17.5).
-5. **Graphical Configuration GUI**: Provide a lightweight user interface to easily customize OSC ports, Chatbox formatting, and toggles for parameter broadcasts.
+1. **Custom EXE Icon**: Replace the default Java cup icon with a customized executable icon.
+2. **Character & Shot Type Detection**: Read and display the active character (e.g., Reimu, Marisa) and selected weapon type.
+3. **Expand Spin-off & Versus Game Support**: Research and adapt memory layouts for other versus and spin-off titles (such as TH14.3, TH16.5, TH17.5).
 
 ---
 
@@ -85,8 +81,6 @@
 ---
 
 ### 🗺️ 次期バージョンで実装予定の機能
-1. **一部作品におけるスペルカード名表示への対応**：ボス戦におけるスペルカード発動の検出とスペカ名表示（日英中対応）の対応。
-2. **カスタム EXE アイコンの設定**：デフォルトの Java アイコンをカスタムアイコンに設定。
-3. **自機キャラクター＆装備タイプの検出**：プレイヤーが選択している自機（霊夢、魔理沙など）および装備タイプ（アタックタイプなど）を検出して表示。
-4. **対戦・外伝作品のサポート拡充**：公式弾幕対戦、外伝作品（弾幕アマノジャク、秘封ナイトメアダイアリー、剛欲異聞など）のメモリ構造を解析・対応。
-5. **GUI（グラフィカル設定画面）の提供**：OSC ポートの設定、Chatbox の送信フォーマットのカスタマイズ、特定パラメータの放送オン・オフなどを簡単に行える設定ウィンドウを実装。
+1. **カスタム EXE アイコンの設定**：デフォルトの Java アイコンをカスタムアイコンに設定。
+2. **自機キャラクター＆装備タイプの検出**：プレイヤーが選択している自機（霊梦、魔理沙など）および装備タイプ（アタックタイプなど）を検出して表示。
+3. **対戦・外伝作品のサポート拡充**：公式弾幕対戦、外伝作品（弾幕アマノジャク、秘封ナイトメアダイアリー、剛欲異聞など）のメモリ構造を解析・対応。
