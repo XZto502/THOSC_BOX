@@ -6,121 +6,136 @@
 
 ## English
 
-**THOSC_BOX** is a VRChat OSC bridge designed for official Touhou Project games (TH06 through TH20). It reads statistics such as Score, cumulative Misses (deaths), and Bomb usage directly from the game's memory and transmits them to VRChat to dynamically control avatar parameters.
+**THOSC_BOX** is a high-performance VRChat OSC bridge designed for official mainline Touhou Project games (TH06 through TH20). It reads real-time gameplay statistics directly from the game's memory and transmits them via OSC (Open Sound Control) protocol to VRChat to drive avatar parameters and display your live gameplay status in the VRChat Chatbox.
 
-### Features
-- **Broad Game Support**: Works out of the box with 15 mainline games from **TH06 (Embodiment of Scarlet Devil)** up to **TH20 (Fossilized Wonders)**.
-- **Smart Stat Tracking**: Automatically calculates your cumulative deaths and bomb usage during a play session (resets automatically when a new game starts).
-- **Game Name Broadcast**: Automatically detects and sends the title of the game you are playing.
-- **Stable Memory Reading**: Uses highly compatible methods to locate game processes and retrieve values safely without crashing the game.
+### 🌟 Key Features
+- **Wide Mainline Game Support**: Seamlessly supports 15 mainline Touhou games from **TH06 (Embodiment of Scarlet Devil)** up to **TH20 (Fossilized Wonders)**.
+- **Real-Time Data Extraction**:
+  - **Score**: Real-time extraction with automatic scaling multiplier recovery.
+  - **Miss & Bomb Tracking**: Automatically calculates cumulative session deaths (misses) and bomb usages (resets on restart/new game, optimized for TH10/TH11 power-based bombs).
+  - **Stage & Difficulty**: Auto-detects play difficulty (Easy, Normal, Hard, Lunatic, Extra, Phantasm) and active stage number.
+- **ASLR Compatibility**: Dynamic memory offset resolution to fully support Steam versions with ASLR enabled.
+- **Stable & Lightweight**: Built with highly compatible process detection and JNA-based memory access, ensuring zero crashes or performance impact on the running game.
 
-### VRChat OSC Parameters
-
-THOSC_BOX sends OSC messages to `127.0.0.1:9000` (VRChat's default OSC port):
+### 📡 VRChat OSC Parameters
+THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's default OSC input port) every 2 seconds:
 
 | Parameter Name | Data Type | Description |
-|---|---|---|
-| `/avatar/parameters/TouhouGameID` | `Int` | Index of the running game in the supported list (0-indexed). |
-| `/avatar/parameters/TouhouGameName` | `String` | Title of the active game (e.g. `东方风神录 ~ Mountain of Faith`). |
-| `/avatar/parameters/TouhouScore` | `Int` | Current in-game score. |
-| `/avatar/parameters/TouhouMiss` | `Int` | Cumulative death (miss) count in the current session. |
-| `/avatar/parameters/TouhouBomb` | `Int` | Cumulative bomb usage count (optimized for power-based bombs in TH10/11). |
-| `/chatbox/input` | `String, Bool, Bool` | Sends the current live game status (Game Name, Score, Miss, Bomb) to the VRChat Chatbox. |
+| :--- | :--- | :--- |
+| `/avatar/parameters/TouhouGameID` | `Int` | 0-indexed index of the active game in the supported list. |
+| `/avatar/parameters/TouhouGameName` | `String` | Complete title of the running game. |
+| `/avatar/parameters/TouhouScore` | `Int` | Current in-game score (fully recovered value). |
+| `/avatar/parameters/TouhouMiss` | `Int` | Cumulative player deaths (misses) in the current session. |
+| `/avatar/parameters/TouhouBomb` | `Int` | Cumulative bomb usages in the current session. |
+| `/avatar/parameters/TouhouDifficulty` | `Int` | Numeric value of difficulty: `0` (Easy), `1` (Normal), `2` (Hard), `3` (Lunatic), `4` (Extra), `5` (Phantasm). |
+| `/avatar/parameters/TouhouDifficultyName` | `String` | Text name of the difficulty (e.g. `Normal`, `Lunatic`). |
+| `/avatar/parameters/TouhouStage` | `Int` | Normalized active stage number: `1`-`6` for main stages, `7` for Extra, `8` for Phantasm. |
+| `/chatbox/input` | `String, Bool, Bool` | Sends a formatted status text to VRChat Chatbox. Example: <br>`Game: <GameName> [<Difficulty>] | Stage: <Stage> | Score: <Score> | Miss: <Miss> | Bomb: <Bomb>` |
 
-### How to Build
-- **Prerequisites**: JDK 17 or higher.
-- **Build Fat JAR**: 
+### 🛠️ Building from Source
+- **Requirements**: JDK 17 or higher.
+- **Build shadow JAR**:
   ```powershell
   ./gradlew shadowJar
   ```
-  Generates `build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar`.
-- **Build Standalone EXE**: 
+  Output file: `build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar`
+- **Build Standalone EXE**:
   ```powershell
   ./gradlew jpackage
   ```
-  Generates a Windows application folder at `build/jpackage/THOSC_BOX`.
+  Output path: `build/jpackage/THOSC_BOX/` (includes the standalone EXE and minimal Java runtime).
 
-### How to Run
-- **Option 1 (Download Release - Recommended)**: Download the pre-compiled package from the GitHub Releases page, extract it, and double-click `THOSC_BOX.exe`.
-- **Option 2 (Build from Source)**: After building from source, double-click `THOSC_BOX.exe` in the `build/jpackage/THOSC_BOX/` folder.
-- **Option 3 (JAR File)**: Run the compiled JAR from your terminal:
+### 🚀 Running the App
+- **Option 1 (Pre-compiled Release - Recommended)**: Download the latest archive from the [GitHub Releases](https://github.com/XZto502/THOSC_BOX/releases) page, extract it, and double-click `THOSC_BOX.exe`.
+- **Option 2 (Build locally)**: Go to `build/jpackage/THOSC_BOX/` and run `THOSC_BOX.exe`.
+- **Option 3 (Run JAR)**: Run the shadow JAR from the terminal:
   ```powershell
-  java -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
+  java -Dfile.encoding=UTF-8 -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
   ```
 
 ---
 
 ## 简体中文
 
-**THOSC_BOX** 是一款专为《东方Project》官方正作（TH06 至 TH20）设计的 VRChat OSC 桥接工具。它通过直接读取游戏内存，实时将分数、累计 Miss 数（死亡次数）和 Bomb 使用次数发送给 VRChat，以动态控制虚拟形象的各项参数。
+**THOSC_BOX** 是一款专为《东方Project》官方正作（TH06 至 TH20）设计的 VRChat OSC 桥接工具。它通过读取运行中的游戏内存，实时将分数、累计死亡次数（Miss数）、累计炸弹使用次数（Bomb数）、当前关卡（Stage）及游戏难度（Difficulty）等数据，通过 OSC 协议发送至 VRChat，用以动态驱动 Avatar 虚拟形象的参数，并同步推送实时状态至聊天框（Chatbox）。
 
-### 功能特性
-- **游戏支持广泛**：无缝支持从 **TH06《东方红魔乡》** 到最新作 **TH20《东方锦上京》** 的共 15 部官方正作。
-- **智能统计追踪**：自动计算单次游玩会话中累计死亡数和炸弹使用数（开始新游戏时会自动清零并重新开始计数）。
-- **游戏名称广播**：自动识别当前运行的游戏标题并实时发送。
-- **稳定安全读取**：采用多重高兼容性内存读取方案，保证稳定获取数据的同时绝不引起游戏进程崩溃。
+### 🌟 功能特性
+- **支持作品广泛**：原生无缝支持从 **TH06《东方红魔乡》** 到最新作 **TH20《东方锦上京》** 的共 15 部 mainline 官方正作。
+- **实时核心数据提取**：
+  - **分数 (Score)**：实时读取并自动完成倍率还原。
+  - **死亡与炸弹统计**：自动计算单次会话中的累计死亡次数和炸弹使用数（开始新游戏或重开时自动清零，并针对 TH10/TH11 消耗 Power 释放灵击的特色机制进行了优化判定）。
+  - **关卡与难度**：自动获取当前游玩难度（Easy, Normal, Hard, Lunatic, Extra, Phantasm）和当前关卡面数。
+- **ASLR 动态基址解析**：完美适配 Steam 版本等启用了 ASLR（地址空间配置随机化）的游戏模块基址。
+- **稳定与轻量化**：基于 JNA实现进程检测与安全只读式内存访问，对游戏无任何性能影响，绝不引起游戏崩溃。
 
-### VRChat OSC 参数表
-
-工具会将以下参数推送到本地的 `127.0.0.1:9000` 端口：
+### 📡 VRChat OSC 参数表
+工具默认每 2 秒将以下参数推送到本地的 `127.0.0.1:9000` 端口：
 
 | 参数名称 | 数据类型 | 描述 |
-|---|---|---|
+| :--- | :--- | :--- |
 | `/avatar/parameters/TouhouGameID` | `Int` | 游戏在支持列表中的索引（从 0 开始）。 |
-| `/avatar/parameters/TouhouGameName` | `String` | 当前运行游戏的完整名称（例如 `东方风神录 ~ Mountain of Faith`）。 |
-| `/avatar/parameters/TouhouScore` | `Int` | 游戏当前分数。 |
+| `/avatar/parameters/TouhouGameName` | `String` | 当前运行游戏的完整名称。 |
+| `/avatar/parameters/TouhouScore` | `Int` | 游戏当前分数（已还原倍率）。 |
 | `/avatar/parameters/TouhouMiss` | `Int` | 当前游玩会话中的累计死亡次数（Miss数）。 |
-| `/avatar/parameters/TouhouBomb` | `Int` | 当前游玩会话中的累计炸弹使用次数（已适配 TH10/11 的灵击机制）。 |
-| `/chatbox/input` | `String, Bool, Bool` | 将当前实时游戏状态（游戏名称、分数、死亡数、炸弹数）发送至 VRChat 聊天框。 |
+| `/avatar/parameters/TouhouBomb` | `Int` | 当前游玩会话中的累计炸弹使用次数（已适配 TH10/11 灵击）。 |
+| `/avatar/parameters/TouhouDifficulty` | `Int` | 难度的数值映射：`0` (Easy), `1` (Normal), `2` (Hard), `3` (Lunatic), `4` (Extra), `5` (Phantasm)。 |
+| `/avatar/parameters/TouhouDifficultyName` | `String` | 难度的文本名称（例如 `Normal`, `Lunatic`）。 |
+| `/avatar/parameters/TouhouStage` | `Int` | 标准化后的关卡数：`1`-`6` 为主线关卡，`7` 为 Extra，`8` 为 Phantasm。 |
+| `/chatbox/input` | `String, Bool, Bool` | 发送格式化后的游玩状态文本至聊天框。例如：<br>`Game: <游戏名> [<难度>] | Stage: <关卡> | Score: <分数> | Miss: <死亡数> | Bomb: <炸弹数>` |
 
-### 如何构建
+### 🛠️ 手动构建
 - **前提条件**：已安装 JDK 17 或更高版本。
 - **构建 Fat JAR**：
   ```powershell
   ./gradlew shadowJar
   ```
-  输出文件：`build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar`。
-- **构建独立 EXE**：
+  输出文件：`build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar`
+- **构建独立免安装 EXE**：
   ```powershell
   ./gradlew jpackage
   ```
-  输出路径：`build/jpackage/THOSC_BOX`。
+  输出路径：`build/jpackage/THOSC_BOX/`（包含生成的 `THOSC_BOX.exe` 及内置的轻量级运行时环境）。
 
-### 如何运行
-- **方式一（下载发行版 - 推荐）**：直接从 GitHub Releases 页面下载最新编译好的压缩包，解压后双击运行 `THOSC_BOX.exe`。
-- **方式二（手动构建 EXE）**：在自己构建后，直接双击 `build/jpackage/THOSC_BOX/` 目录下的 `THOSC_BOX.exe`。
-- **方式三（JAR 包）**：使用命令行运行：
+### 🚀 如何运行
+- **方式一（下载发行版 - 推荐）**：直接从 [GitHub Releases](https://github.com/XZto502/THOSC_BOX/releases) 页面下载最新编译好的压缩包，解压后双击运行 `THOSC_BOX.exe`。
+- **方式二（手动构建版）**：构建完成后，直接双击 `build/jpackage/THOSC_BOX/` 目录下的 `THOSC_BOX.exe`。
+- **方式三（命令行 JAR）**：使用命令行终端运行：
   ```powershell
-  java -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
+  java -Dfile.encoding=UTF-8 -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
   ```
 
 ---
 
 ## 日本語
 
-**THOSC_BOX** は、東方Projectの原作ゲーム（TH06〜TH20）向けに設計された VRChat OSC 送信ツールです。ゲームメモリからスコア、累計被弾数（Miss）、ボム使用数をリアルタイムに読み取り、OSC経由で VRChat に送信することでアバターのギミックやパラメーターを動的に制御できます。
+**THOSC_BOX** は、東方Projectの公式メインライン原作ゲーム（TH06〜TH20）向けに設計された高精度な VRChat OSC 送信ツールです。ゲームメモリからスコア、被弾数（Miss）、ボム使用数、ステージ数、および難易度をリアルタイムに直接読み込み、OSC プロトコル経由で VRChat に送信することで、アバターパラメータを動的に制御したり、VRChat のチャットボックス（Chatbox）に現在のリアルタイムステータスを表示することができます。
 
-### 機能特徴
-- **幅広い作品に対応**：**東方紅魔郷 (TH06)** から最新作 **東方錦上京 (TH20)** までの計15作品に対応しています。
-- **スマートな統計追跡**：プレイ中の被弾回数とボム使用回数を自動的に累積カウントします（新しいゲームを開始すると自動で 0 にリセットされます）。
-- **ゲームタイトルの自動送信**：現在プレイしている東方作品の名前を自動で検出して送信します。
-- **高い安定性**：ゲームの動作に影響を与えない互換性の高いメモリ読み取り方法を採用しています。
+### 🌟 主な機能
+- **幅広い公式作品に対応**：**東方紅魔郷 (TH06)** から最新作 **東方錦上京 (TH20)** までの計15作品にネイティブ対応しています。
+- **リアルタイムなゲームデータ同期**：
+  - **スコア (Score)**：メモリからスコアを取得し、ゲームごとの倍率を自動で復元。
+  - **被弾（Miss）とボム（Bomb）の累積カウント**：ゲーム開始・リトライ時に自動リセットされる累計被弾数・ボム使用数を集計（TH10/TH11のパワー消費型ボムも最適化判定）。
+  - **ステージと難易度**：現在の難易度（Easy, Normal, Hard, Lunatic, Extra, Phantasm）および現在のステージ数を自動検知。
+- **ASLR 対応**：Steam版などの ASLR（アドレス空間配置のランダム化）モジュールベース自動解析。
+- **軽量かつ高安定性**：JNAを用いた安全な読み取り専用メモリ書き込み不要のアプローチを採用。ゲームをクラッシュさせたり負荷を与えることはありません。
 
-### VRChat OSC パラメーター
-
-本ツールは以下のパラメーターを `127.0.0.1:9000`（VRChatのデフォルトOSCポート）へ送信します：
+### 📡 VRChat OSC パラメーター
+本ツールはデフォルトで2秒ごとに以下のパラメーターを `127.0.0.1:9000`（VRChatのデフォルト入力ポート）へ送信します：
 
 | パラメーター名 | データ型 | 説明 |
-|---|---|---|
-| `/avatar/parameters/TouhouGameID` | `Int` | サポート一覧におけるゲームのインデックス（0開始）。 |
-| `/avatar/parameters/TouhouGameName` | `String` | 実行中のゲーム名（例：`东方风神录 ~ Mountain of Faith`）。 |
-| `/avatar/parameters/TouhouScore` | `Int` | 現在のゲームスコア。 |
-| `/avatar/parameters/TouhouMiss` | `Int` | 現在のセッションでの累計被弾数（Miss数）。 |
-| `/avatar/parameters/TouhouBomb` | `Int` | 現在のセッションでの累計ボム使用回数（TH10/11の霊撃もカウント）。 |
-| `/chatbox/input` | `String, Bool, Bool` | 現在のリアルタイムなゲームステータス（ゲーム名、スコア、被弾数、ボム数）を VRChat チャットボックスへ送信します。 |
+| :--- | :--- | :--- |
+| `/avatar/parameters/TouhouGameID` | `Int` | サポート一覧における該当ゲームのインデックス（0開始）。 |
+| `/avatar/parameters/TouhouGameName` | `String` | 実行中のゲームのタイトル。 |
+| `/avatar/parameters/TouhouScore` | `Int` | 現在のゲームスコア（倍率復元済み）。 |
+| `/avatar/parameters/TouhouMiss` | `Int` | 現在のプレイセッションでの累計被弾数（Miss数）。 |
+| `/avatar/parameters/TouhouBomb` | `Int` | 現在のプレイセッションでの累計ボム使用回数（TH10/11の霊撃もカウント）。 |
+| `/avatar/parameters/TouhouDifficulty` | `Int` | 難易度の数値マップ：`0` (Easy), `1` (Normal), `2` (Hard), `3` (Lunatic), `4` (Extra), `5` (Phantasm)。 |
+| `/avatar/parameters/TouhouDifficultyName` | `String` | 難易度の表示名（例：`Normal`, `Lunatic`）。 |
+| `/avatar/parameters/TouhouStage` | `Int` | 標準化された現在のステージ数：`1`〜`6`（通常ステージ）、`7`（Extra）、`8`（Phantasm）。 |
+| `/chatbox/input` | `String, Bool, Bool` | 現在のゲームステータステキストを Chatbox へ送信します。出力例：<br>`Game: <ゲーム名> [<難易度>] | Stage: <ステージ> | Score: <スコア> | Miss: <被弾数> | Bomb: <ボム数>` |
 
-### ビルド方法
-- **前提条件**: JDK 17 以上がインストールされていること。
+### 🛠️ ソースコードからのビルド
+- **システム要件**: JDK 17 以上。
 - **Fat JAR のビルド**:
   ```powershell
   ./gradlew shadowJar
@@ -130,14 +145,14 @@ THOSC_BOX sends OSC messages to `127.0.0.1:9000` (VRChat's default OSC port):
   ```powershell
   ./gradlew jpackage
   ```
-  生成ディレクトリ: `build/jpackage/THOSC_BOX`
+  生成ディレクトリ: `build/jpackage/THOSC_BOX/` (独立動作可能な EXE と軽量 JRE ランタイムが含まれます)。
 
-### 実行方法
-- **方法 1（リリース版をダウンロード - 推奨）**: GitHub Releases ページからビルド済みのパッケージをダウンロードし、解凍して `THOSC_BOX.exe` をダブルクリックして実行します。
-- **方法 2（自分でビルドした EXE）**: ビルド後、`build/jpackage/THOSC_BOX/` ディレクトリ内の `THOSC_BOX.exe` をダブルクリックして実行します。
-- **方法 3（JAR ファイル）**: コマンドラインから起動します：
+### 🚀 実行方法
+- **方法 1（リリース版をダウンロード - 推奨）**: [GitHub Releases](https://github.com/XZto502/THOSC_BOX/releases) ページから最新ビルド済みの ZIP をダウンロードし、解凍して `THOSC_BOX.exe` をダブルクリックして起動します。
+- **方法 2（自分でビルドした EXE）**: ビルド後、`build/jpackage/THOSC_BOX/` ディレクトリ内の `THOSC_BOX.exe` を起動します。
+- **方法 3（JAR ファイルによる起動）**: 端末から以下のように起動します：
   ```powershell
-  java -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
+  java -Dfile.encoding=UTF-8 -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
   ```
 
 ---
