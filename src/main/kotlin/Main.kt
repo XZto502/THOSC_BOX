@@ -285,10 +285,7 @@ fun readActiveSpellId(processHandle: WinNT.HANDLE, baseAddr: Long, config: GameC
     val bossIndex = readMemoryValue(processHandle, bossManagerPtr + hexToLong(indexOffset), "int32", "BossIndex").toInt()
     if (bossIndex < 0 || bossIndex > 100) return null
 
-    val activeBossPtr = readPointer(processHandle, bossManagerPtr + bossIndex * 4)
-    if (activeBossPtr < 0x10000L || activeBossPtr >= 0xFFFF0000L) return null
-
-    val spellId = readMemoryValue(processHandle, activeBossPtr + hexToLong(spellIdOffset), "int32", "SpellID").toInt()
+    val spellId = readMemoryValue(processHandle, bossManagerPtr + bossIndex * 4 + hexToLong(spellIdOffset), "int32", "SpellID").toInt()
     return spellId
 }
 
