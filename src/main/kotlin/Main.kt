@@ -30,7 +30,210 @@ import com.sun.jna.win32.StdCallLibrary
 import com.sun.jna.win32.W32APIOptions
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import java.net.InetSocketAddress
+import java.awt.*
+import java.awt.image.BufferedImage
+import java.io.File
+
+fun getAppFont(style: Int, size: Int): Font {
+    return Font("Dialog", style, size)
+}
+
+fun getMonospacedFont(size: Int): Font {
+    return Font("DialogInput", Font.PLAIN, size)
+}
+
+fun showMD3MessageDialog(parent: java.awt.Frame, messageText: String) {
+    val dialog = javax.swing.JDialog(parent, "", true)
+    dialog.isUndecorated = true
+    dialog.background = Color(0, 0, 0, 0)
+    dialog.size = Dimension(350, 160)
+    dialog.setLocationRelativeTo(parent)
+
+    val mainPanel = object : javax.swing.JPanel() {
+        override fun paintComponent(g: Graphics) {
+            val g2d = g.create() as Graphics2D
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2d.color = MD3Color.Surface
+            g2d.fillRoundRect(1, 1, width - 2, height - 2, 24, 24)
+            g2d.color = MD3Color.Outline
+            g2d.stroke = java.awt.BasicStroke(1.5f)
+            g2d.drawRoundRect(1, 1, width - 3, height - 3, 24, 24)
+            g2d.dispose()
+        }
+    }
+    mainPanel.layout = javax.swing.BoxLayout(mainPanel, javax.swing.BoxLayout.Y_AXIS)
+    mainPanel.isOpaque = false
+    mainPanel.border = javax.swing.BorderFactory.createEmptyBorder(20, 20, 20, 20)
+
+    val titleVal = when (activeLang) {
+        "zh" -> "提示"
+        "ja" -> "お知らせ"
+        else -> "Notification"
+    }
+
+    val titleLabel = javax.swing.JLabel(titleVal).apply {
+        foreground = MD3Color.Primary
+        font = getAppFont(Font.BOLD, 16)
+        alignmentX = Component.CENTER_ALIGNMENT
+    }
+    
+    val msgLabel = javax.swing.JLabel(messageText).apply {
+        foreground = MD3Color.TextPrimary
+        font = getAppFont(Font.PLAIN, 14)
+        alignmentX = Component.CENTER_ALIGNMENT
+    }
+
+    val btnText = when (activeLang) {
+        "zh" -> "确定"
+        "ja" -> "確定"
+        else -> "OK"
+    }
+
+    val okBtn = MD3Button(btnText, MD3Button.ButtonType.FILLED, radius = 16).apply {
+        alignmentX = Component.CENTER_ALIGNMENT
+        maximumSize = Dimension(100, 36)
+        preferredSize = Dimension(100, 36)
+        addActionListener {
+            dialog.dispose()
+        }
+    }
+
+    mainPanel.add(titleLabel)
+    mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 12)))
+    mainPanel.add(msgLabel)
+    mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 16)))
+    mainPanel.add(okBtn)
+
+    dialog.contentPane = mainPanel
+    dialog.isVisible = true
+}
+
+object LogManager {
+    private val logBuffer = StringBuilder()
+    private var logArea: javax.swing.JTextArea? = null
+    private val originalOut = System.out
+    private val originalErr = System.err
+
+    fun init() {
+        val redirectOut = object : java.io.OutputStream() {
+            private val lineBuffer = java.io.ByteArrayOutputStream()
+            override fun write(b: Int) {
+                originalOut.write(b)
+                lineBuffer.write(b)
+                if (b == '\n'.code || b == '\r'.code) {
+                    flushLine()
+                }
+            }
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                originalOut.write(b, off, len)
+                lineBuffer.write(b, off, len)
+                var hasLineEnd = false
+                for (i in off until (off + len)) {
+                    if (b[i] == '\n'.code.toByte() || b[i] == '\r'.code.toByte()) {
+                        hasLineEnd = true
+                        break
+                    }
+                }
+                if (hasLineEnd) {
+                    flushLine()
+                }
+            }
+            private fun flushLine() {
+                val s = lineBuffer.toString("UTF-8")
+                lineBuffer.reset()
+                if (s.isNotEmpty()) {
+                    appendLog(s)
+                }
+            }
+        }
+
+        val redirectErr = object : java.io.OutputStream() {
+            private val lineBuffer = java.io.ByteArrayOutputStream()
+            override fun write(b: Int) {
+                originalErr.write(b)
+                lineBuffer.write(b)
+                if (b == '\n'.code || b == '\r'.code) {
+                    flushLine()
+                }
+            }
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                originalErr.write(b, off, len)
+                lineBuffer.write(b, off, len)
+                var hasLineEnd = false
+                for (i in off until (off + len)) {
+                    if (b[i] == '\n'.code.toByte() || b[i] == '\r'.code.toByte()) {
+                        hasLineEnd = true
+                        break
+                    }
+                }
+                if (hasLineEnd) {
+                    flushLine()
+                }
+            }
+            private fun flushLine() {
+                val s = lineBuffer.toString("UTF-8")
+                lineBuffer.reset()
+                if (s.isNotEmpty()) {
+                    appendLog(s)
+                }
+            }
+        }
+
+        System.setOut(java.io.PrintStream(redirectOut, true, "UTF-8"))
+        System.setErr(java.io.PrintStream(redirectErr, true, "UTF-8"))
+    }
+
+    private fun appendLog(s: String) {
+        synchronized(logBuffer) {
+            val area = logArea
+            if (area != null) {
+                javax.swing.SwingUtilities.invokeLater {
+                    val currentText = area.text
+                    if (s.startsWith("\r")) {
+                        val lastNewline = currentText.lastIndexOf('\n')
+                        if (lastNewline >= 0) {
+                            area.text = currentText.substring(0, lastNewline + 1) + s.substring(1)
+                        } else {
+                            area.text = s.substring(1)
+                        }
+                    } else {
+                        area.append(s)
+                    }
+                    if (area.text.length > 50000) {
+                        area.text = area.text.substring(20000)
+                    }
+                    area.caretPosition = area.document.length
+                }
+            } else {
+                if (s.startsWith("\r")) {
+                    val lastNewline = logBuffer.lastIndexOf("\n")
+                    if (lastNewline >= 0) {
+                        logBuffer.setLength(lastNewline + 1)
+                        logBuffer.append(s.substring(1))
+                    } else {
+                        logBuffer.setLength(0)
+                        logBuffer.append(s.substring(1))
+                    }
+                } else {
+                    logBuffer.append(s)
+                }
+                if (logBuffer.length > 50000) {
+                    logBuffer.delete(0, 20000)
+                }
+            }
+        }
+    }
+
+    fun setTextArea(area: javax.swing.JTextArea) {
+        synchronized(logBuffer) {
+            logArea = area
+            area.text = logBuffer.toString()
+            area.caretPosition = area.document.length
+        }
+    }
+}
 
 interface PsapiExt : StdCallLibrary {
     fun EnumProcessModulesEx(
@@ -60,6 +263,10 @@ data class GameConfig(
     val missOffset: List<String>,
     val bombOffset: List<String>,
     val stageOffset: List<String> = emptyList(),
+    val characterOffset: List<String> = emptyList(),
+    val characterType: String = "int32",
+    val subshotOffset: List<String> = emptyList(),
+    val subshotType: String = "int32",
     val stageStartsFrom: Int = 1,
     val bossManagerOffset: String? = null,
     val bossIndexOffset: String? = null,
@@ -70,8 +277,938 @@ data class GameConfig(
     val missType: String = "int32",
     val bombType: String = "int32",
     val scoreMultiplier: Int = 1,
-    val onSteam: Boolean = false
+    val onSteam: Boolean = false,
+    val grazeOffset: List<String> = emptyList(),
+    val grazeType: String = "none",
+    val powerOffset: List<String> = emptyList(),
+    val powerType: String = "none",
+    val pointOffset: List<String> = emptyList(),
+    val pointType: String = "none",
+    val cherryMaxOffset: List<String> = emptyList(),
+    val cherryMaxType: String = "none"
 )
+
+@Serializable
+data class Settings(
+    val language: String,
+    val oscPort: Int = 9000,
+    val enableChatbox: Boolean = true
+)
+
+
+fun selectLanguage(): String {
+    val configFile = java.io.File("settings.json")
+    if (configFile.exists()) {
+        try {
+            val content = configFile.readText()
+            val settings = Json.decodeFromString<Settings>(content)
+            if (settings.language in listOf("zh", "en", "ja")) {
+                activeLang = settings.language
+                activeOscPort = settings.oscPort
+                activeEnableChatbox = settings.enableChatbox
+                return settings.language
+            }
+        } catch (e: Exception) {
+            // Ignore and prompt
+        }
+    }
+
+    var choice = ""
+    if (!java.awt.GraphicsEnvironment.isHeadless()) {
+        val dialog = javax.swing.JDialog(null as java.awt.Frame?, "Language Selection", true)
+        dialog.isUndecorated = true
+        dialog.background = Color(0, 0, 0, 0)
+        dialog.size = Dimension(400, 250)
+        dialog.setLocationRelativeTo(null)
+        dialog.defaultCloseOperation = javax.swing.JDialog.DISPOSE_ON_CLOSE
+
+        val mainPanel = object : javax.swing.JPanel() {
+            override fun paintComponent(g: Graphics) {
+                val g2d = g.create() as Graphics2D
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2d.color = MD3Color.Surface
+                g2d.fillRoundRect(1, 1, width - 2, height - 2, 24, 24)
+                g2d.color = MD3Color.Outline
+                g2d.stroke = java.awt.BasicStroke(1.5f)
+                g2d.drawRoundRect(1, 1, width - 3, height - 3, 24, 24)
+                g2d.dispose()
+            }
+        }
+        mainPanel.layout = javax.swing.BoxLayout(mainPanel, javax.swing.BoxLayout.Y_AXIS)
+        mainPanel.isOpaque = false
+        mainPanel.border = javax.swing.BorderFactory.createEmptyBorder(20, 20, 20, 20)
+
+        val titleLabel = javax.swing.JLabel("Select Language / 选择语言 / 言語選択")
+        titleLabel.foreground = MD3Color.TextPrimary
+        titleLabel.alignmentX = Component.CENTER_ALIGNMENT
+        titleLabel.font = getAppFont(Font.BOLD, 18)
+        
+        mainPanel.add(titleLabel)
+        mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 25)))
+
+        var dragStart: Point? = null
+        mainPanel.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mousePressed(e: java.awt.event.MouseEvent) {
+                dragStart = e.point
+            }
+        })
+        mainPanel.addMouseMotionListener(object : java.awt.event.MouseMotionAdapter() {
+            override fun mouseDragged(e: java.awt.event.MouseEvent) {
+                val curr = e.locationOnScreen
+                if (dragStart != null) {
+                    dialog.setLocation(curr.x - dragStart!!.x, curr.y - dragStart!!.y)
+                }
+            }
+        })
+
+        fun createLangBtn(text: String, lang: String): javax.swing.JButton {
+            val btn = object : javax.swing.JButton(text) {
+                private var isHovered = false
+                init {
+                    isContentAreaFilled = false
+                    isBorderPainted = false
+                    isFocusable = false
+                    foreground = MD3Color.TextPrimary
+                    font = getAppFont(Font.PLAIN, 15)
+                    addMouseListener(object : java.awt.event.MouseAdapter() {
+                        override fun mouseEntered(e: java.awt.event.MouseEvent?) {
+                            isHovered = true
+                            repaint()
+                        }
+                        override fun mouseExited(e: java.awt.event.MouseEvent?) {
+                            isHovered = false
+                            repaint()
+                        }
+                    })
+                }
+                override fun paintComponent(g: Graphics) {
+                    val g2d = g.create() as Graphics2D
+                    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                    g2d.color = if (isHovered) MD3Color.SecondaryContainer else MD3Color.Surface.brighter()
+                    g2d.fillRoundRect(1, 1, width - 2, height - 2, 16, 16)
+                    g2d.color = MD3Color.Outline
+                    g2d.drawRoundRect(1, 1, width - 3, height - 3, 16, 16)
+                    super.paintComponent(g)
+                    g2d.dispose()
+                }
+            }
+            btn.alignmentX = Component.CENTER_ALIGNMENT
+            btn.maximumSize = Dimension(300, 40)
+            btn.preferredSize = Dimension(300, 40)
+            btn.addActionListener {
+                choice = lang
+                dialog.dispose()
+            }
+            return btn
+        }
+
+        mainPanel.add(createLangBtn("简体中文 (Chinese)", "zh"))
+        mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 10)))
+        mainPanel.add(createLangBtn("English (English)", "en"))
+        mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 10)))
+        mainPanel.add(createLangBtn("日本語 (Japanese)", "ja"))
+
+        dialog.contentPane = mainPanel
+        dialog.isVisible = true // Blocks because it's modal
+
+        if (choice.isEmpty()) {
+            choice = "zh" // fallback if closed somehow
+        }
+    } else {
+        println("=========================================")
+        println("Please select your language / 请选择语言 / 言語を選択してください:")
+        println("1. 简体中文 (Chinese)")
+        println("2. English (English)")
+        println("3. 日本語 (Japanese)")
+        println("=========================================")
+        print("Enter number (1-3) / 输入数字 (1-3) / 数字を入力してください (1-3): ")
+        System.out.flush()
+
+        while (true) {
+            val input = readLine()?.trim()
+            if (input == "1" || input == "2" || input == "3") {
+                choice = when (input) {
+                    "1" -> "zh"
+                    "2" -> "en"
+                    "3" -> "ja"
+                    else -> "zh"
+                }
+                break
+            }
+            print("Invalid input. Enter 1-3: ")
+            System.out.flush()
+        }
+    }
+
+    try {
+        val settings = Settings(choice, activeOscPort, activeEnableChatbox)
+        configFile.writeText(Json.encodeToString(settings))
+        val successMsg = when (choice) {
+            "zh" -> "语言已设置为：简体中文。配置文件已保存至 settings.json。"
+            "en" -> "Language set to English. Configuration saved to settings.json."
+            "ja" -> "言語が日本語に設定されました。設定は settings.json に保存されました。"
+            else -> ""
+        }
+        println(successMsg)
+    } catch (e: Exception) {
+        println("Warning: Failed to save settings.json: ${e.message}")
+    }
+
+    activeLang = choice
+    return choice
+}
+
+
+
+object MD3Color {
+    val Background = Color(0x1C, 0x1B, 0x1F)
+    val Surface = Color(0x25, 0x23, 0x2A)
+    val Primary = Color(0xD0, 0xBC, 0xFF)
+    val OnPrimary = Color(0x38, 0x1E, 0x72)
+    val SecondaryContainer = Color(0x4A, 0x44, 0x58)
+    val OnSecondaryContainer = Color(0xE8, 0xDE, 0xF8)
+    val Outline = Color(0x93, 0x8F, 0x99)
+    val TextPrimary = Color(0xE6, 0xE1, 0xE5)
+    val TextSecondary = Color(0xCA, 0xC4, 0xD0)
+    val AccentGreen = Color(0xA8, 0xDA, 0xB5)
+    val AccentRed = Color(0xFF, 0xB4, 0xAB)
+}
+
+open class MD3Card(val radius: Int = 16) : javax.swing.JPanel() {
+    init {
+        isOpaque = false
+        background = MD3Color.Surface
+        border = javax.swing.BorderFactory.createEmptyBorder(12, 12, 12, 12)
+    }
+    override fun paintComponent(g: Graphics) {
+        val g2d = g.create() as Graphics2D
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2d.color = background
+        g2d.fillRoundRect(0, 0, width, height, radius, radius)
+        g2d.dispose()
+    }
+}
+
+class MD3Button(
+    text: String,
+    val type: ButtonType = ButtonType.FILLED,
+    val radius: Int = 16
+) : javax.swing.JButton(text) {
+    enum class ButtonType { FILLED, OUTLINED, TEXT }
+    private var isHovered = false
+    private var isPressed = false
+
+    init {
+        isContentAreaFilled = false
+        isBorderPainted = false
+        isFocusable = false
+        foreground = when (type) {
+            ButtonType.FILLED -> MD3Color.OnPrimary
+            ButtonType.OUTLINED -> MD3Color.Primary
+            ButtonType.TEXT -> MD3Color.Primary
+        }
+        font = getAppFont(Font.BOLD, 14)
+        border = javax.swing.BorderFactory.createEmptyBorder(6, 16, 6, 16)
+        addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseEntered(e: java.awt.event.MouseEvent?) {
+                isHovered = true
+                repaint()
+            }
+            override fun mouseExited(e: java.awt.event.MouseEvent?) {
+                isHovered = false
+                repaint()
+            }
+            override fun mousePressed(e: java.awt.event.MouseEvent?) {
+                isPressed = true
+                repaint()
+            }
+            override fun mouseReleased(e: java.awt.event.MouseEvent?) {
+                isPressed = false
+                repaint()
+            }
+        })
+    }
+
+    override fun paintComponent(g: Graphics) {
+        val g2d = g.create() as Graphics2D
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        val paintRadius = minOf(radius, height / 2)
+        when (type) {
+            ButtonType.FILLED -> {
+                g2d.color = when {
+                    isPressed -> MD3Color.Primary.darker()
+                    isHovered -> MD3Color.Primary.brighter()
+                    else -> MD3Color.Primary
+                }
+                g2d.fillRoundRect(1, 1, width - 2, height - 2, paintRadius, paintRadius)
+            }
+            ButtonType.OUTLINED -> {
+                if (isHovered || isPressed) {
+                    g2d.color = if (isPressed) MD3Color.SecondaryContainer.darker() else MD3Color.SecondaryContainer
+                    g2d.fillRoundRect(1, 1, width - 2, height - 2, paintRadius, paintRadius)
+                }
+                g2d.color = MD3Color.Outline
+                g2d.stroke = java.awt.BasicStroke(1.2f)
+                g2d.drawRoundRect(1, 1, width - 3, height - 3, paintRadius, paintRadius)
+            }
+            ButtonType.TEXT -> {
+                if (isHovered || isPressed) {
+                    g2d.color = if (isPressed) MD3Color.SecondaryContainer.darker() else MD3Color.SecondaryContainer
+                    g2d.fillRoundRect(1, 1, width - 2, height - 2, paintRadius, paintRadius)
+                }
+            }
+        }
+        super.paintComponent(g)
+        g2d.dispose()
+    }
+}
+
+class MD3TextField(columns: Int) : javax.swing.JTextField(columns) {
+    init {
+        isOpaque = false
+        caretColor = MD3Color.Primary
+        foreground = MD3Color.TextPrimary
+        background = MD3Color.Surface
+        font = getAppFont(Font.PLAIN, 14)
+        border = javax.swing.BorderFactory.createCompoundBorder(
+            object : javax.swing.border.Border {
+                override fun paintBorder(c: Component?, g: Graphics?, x: Int, y: Int, width: Int, height: Int) {
+                    val g2d = g?.create() as Graphics2D
+                    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                    g2d.color = MD3Color.Outline
+                    g2d.stroke = java.awt.BasicStroke(1.2f)
+                    g2d.drawRoundRect(x + 1, y + 1, width - 3, height - 3, 8, 8)
+                    g2d.dispose()
+                }
+                override fun getBorderInsets(c: Component?): Insets = Insets(6, 10, 6, 10)
+                override fun isBorderOpaque(): Boolean = false
+            },
+            javax.swing.BorderFactory.createEmptyBorder(4, 4, 4, 4)
+        )
+    }
+    override fun paintComponent(g: Graphics) {
+        val g2d = g.create() as Graphics2D
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2d.color = background
+        g2d.fillRoundRect(1, 1, width - 2, height - 2, 8, 8)
+        super.paintComponent(g)
+        g2d.dispose()
+    }
+}
+
+class MD3CheckboxIcon(val size: Int = 18) : javax.swing.Icon {
+    override fun getIconWidth(): Int = size
+    override fun getIconHeight(): Int = size
+
+    override fun paintIcon(c: java.awt.Component?, g: java.awt.Graphics?, x: Int, y: Int) {
+        val g2d = g?.create() as? Graphics2D ?: return
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+
+        val isSelected = if (c is javax.swing.JCheckBox) c.isSelected else false
+        val isPressed = if (c is javax.swing.AbstractButton) c.model.isPressed else false
+        val isHovered = if (c is javax.swing.AbstractButton) c.model.isRollover else false
+
+        if (isSelected) {
+            g2d.color = if (isPressed) MD3Color.Primary.darker() else if (isHovered) MD3Color.Primary.brighter() else MD3Color.Primary
+            g2d.fillRoundRect(x + 1, y + 1, size - 2, size - 2, 4, 4)
+
+            g2d.color = MD3Color.OnPrimary
+            g2d.stroke = java.awt.BasicStroke(2.5f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND)
+            
+            val px1 = x + (0.28 * size).toInt()
+            val py1 = y + (0.5 * size).toInt()
+            val px2 = x + (0.45 * size).toInt()
+            val py2 = y + (0.7 * size).toInt()
+            val px3 = x + (0.75 * size).toInt()
+            val py3 = y + (0.3 * size).toInt()
+
+            g2d.drawLine(px1, py1, px2, py2)
+            g2d.drawLine(px2, py2, px3, py3)
+        } else {
+            g2d.color = if (isHovered) MD3Color.TextPrimary else MD3Color.Outline
+            g2d.stroke = java.awt.BasicStroke(1.5f)
+            g2d.drawRoundRect(x + 1, y + 1, size - 3, size - 3, 4, 4)
+        }
+
+        g2d.dispose()
+    }
+}
+
+
+class MD3TabButton(text: String, var isActive: Boolean = false) : javax.swing.JButton(text) {
+    private var isHovered = false
+    init {
+        isContentAreaFilled = false
+        isBorderPainted = false
+        isFocusable = false
+        foreground = if (isActive) MD3Color.OnSecondaryContainer else MD3Color.TextSecondary
+        font = getAppFont(Font.BOLD, 14)
+        addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseEntered(e: java.awt.event.MouseEvent?) {
+                isHovered = true
+                repaint()
+            }
+            override fun mouseExited(e: java.awt.event.MouseEvent?) {
+                isHovered = false
+                repaint()
+            }
+        })
+    }
+
+    fun updateActive(active: Boolean) {
+        isActive = active
+        foreground = if (isActive) MD3Color.OnSecondaryContainer else MD3Color.TextSecondary
+        repaint()
+    }
+
+    override fun paintComponent(g: Graphics) {
+        val g2d = g.create() as Graphics2D
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        if (isActive) {
+            g2d.color = MD3Color.SecondaryContainer
+            g2d.fillRoundRect(0, 0, width, height, 20, 20)
+        } else if (isHovered) {
+            g2d.color = Color(0x35, 0x33, 0x3A)
+            g2d.fillRoundRect(0, 0, width, height, 20, 20)
+        }
+        super.paintComponent(g)
+        g2d.dispose()
+    }
+}
+
+class StatCard(var labelText: String, var valueText: String) : MD3Card(radius = 12) {
+    private val titleLabel = javax.swing.JLabel(labelText).apply {
+        foreground = MD3Color.TextSecondary
+        font = getAppFont(Font.BOLD, 12)
+        alignmentX = Component.LEFT_ALIGNMENT
+    }
+    private val valLabel = javax.swing.JLabel(valueText).apply {
+        foreground = MD3Color.TextPrimary
+        font = getAppFont(Font.BOLD, 22)
+        alignmentX = Component.LEFT_ALIGNMENT
+    }
+    init {
+        layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+        add(titleLabel)
+        add(javax.swing.Box.createRigidArea(Dimension(0, 8)))
+        add(valLabel)
+    }
+    fun updateLabel(newLabel: String) {
+        titleLabel.text = newLabel
+    }
+    fun updateValue(newValue: String) {
+        valLabel.text = newValue
+    }
+}
+
+fun getLocalizedString(key: String, lang: String): String {
+    return when (lang) {
+        "zh" -> when (key) {
+            "tab_dashboard" -> "仪表盘"
+            "tab_settings" -> "设置"
+            "tab_logs" -> "调试"
+            "stat_game" -> "当前游戏"
+            "stat_chara" -> "角色/机体"
+            "stat_stage" -> "关卡"
+            "stat_score" -> "得分"
+            "stat_lives" -> "残机/Miss"
+            "stat_bombs" -> "炸弹/Bomb"
+            "stat_graze" -> "擦弹/Graze"
+            "stat_power" -> "火力/Power"
+            "stat_point" -> "得分道具/Point"
+            "stat_cherry" -> "最大樱点/Cherry"
+            "stat_spell" -> "符卡"
+            "settings_lang" -> "界面语言:"
+            "settings_port" -> "VRChat OSC 端口:"
+            "settings_chatbox" -> "启用 VRChat Chatbox 状态发送"
+            "btn_save" -> "保存设置"
+            "save_success" -> "设置已成功保存！"
+            "status_scanning" -> "正在扫描游戏..."
+            "status_playing" -> "正在玩"
+            "title_app" -> "Touhou VRChat OSC 桥接器"
+            "btn_clear" -> "清除日志"
+            "btn_copy" -> "复制日志"
+            else -> key
+        }
+        "ja" -> when (key) {
+            "tab_dashboard" -> "ダッシュボード"
+            "tab_settings" -> "設定"
+            "tab_logs" -> "デバッグ"
+            "stat_game" -> "現在のゲーム"
+            "stat_chara" -> "キャラクター"
+            "stat_stage" -> "ステージ"
+            "stat_score" -> "スコア"
+            "stat_lives" -> "残機/被弾"
+            "stat_bombs" -> "ボム"
+            "stat_graze" -> "グレイズ"
+            "stat_power" -> "パワー"
+            "stat_point" -> "得点アイテム"
+            "stat_cherry" -> "最大桜点"
+            "stat_spell" -> "スペルカード"
+            "settings_lang" -> "言語:"
+            "settings_port" -> "VRChat OSC ポート:"
+            "settings_chatbox" -> "VRChat Chatbox 送信を有効にする"
+            "btn_save" -> "設定を保存"
+            "save_success" -> "設定が保存されました！"
+            "status_scanning" -> "ゲームをスキャン中..."
+            "status_playing" -> "プレイ中"
+            "title_app" -> "東方 VRChat OSC ブリッジ"
+            "btn_clear" -> "ログ消去"
+            "btn_copy" -> "ログコピー"
+            else -> key
+        }
+        else -> when (key) {
+            "tab_dashboard" -> "Dashboard"
+            "tab_settings" -> "Settings"
+            "tab_logs" -> "Debug"
+            "stat_game" -> "Active Game"
+            "stat_chara" -> "Character"
+            "stat_stage" -> "Stage"
+            "stat_score" -> "Score"
+            "stat_lives" -> "Lives/Miss"
+            "stat_bombs" -> "Bombs"
+            "stat_graze" -> "Graze"
+            "stat_power" -> "Power"
+            "stat_point" -> "Point/PIV"
+            "stat_cherry" -> "Cherry Max"
+            "stat_spell" -> "Spell Card"
+            "settings_lang" -> "Language:"
+            "settings_port" -> "VRChat OSC Port:"
+            "settings_chatbox" -> "Enable VRChat Chatbox Output"
+            "btn_save" -> "Save Settings"
+            "save_success" -> "Settings saved successfully!"
+            "status_scanning" -> "Scanning for games..."
+            "status_playing" -> "Playing"
+            "title_app" -> "Touhou VRChat OSC Bridge"
+            "btn_clear" -> "Clear Logs"
+            "btn_copy" -> "Copy Logs"
+            else -> key
+        }
+    }
+}
+
+var mainWindow: MainWindow? = null
+
+fun updateLiveStats(
+    gameName: String,
+    characterName: String,
+    stage: String,
+    score: Int,
+    miss: Int,
+    bomb: Int,
+    graze: Int,
+    power: Float,
+    point: Int,
+    cherry: Int,
+    spellName: String?
+) {
+    java.awt.EventQueue.invokeLater {
+        mainWindow?.apply {
+            gameCard.updateValue(gameName)
+            charaCard.updateValue(characterName)
+            stageCard.updateValue(stage)
+            scoreCard.updateValue(score.toString())
+            livesCard.updateValue(miss.toString())
+            bombsCard.updateValue(bomb.toString())
+            grazeCard.updateValue(graze.toString())
+            powerCard.updateValue(String.format(java.util.Locale.US, "%.2f", power))
+            pointCard.updateValue(point.toString())
+            cherryCard.updateValue(if (cherry > 0) cherry.toString() else "N/A")
+            spellCard.updateValue(spellName ?: "N/A")
+        }
+    }
+}
+
+class MainWindow : javax.swing.JFrame() {
+    val btnDashboard = MD3TabButton("Dashboard", true)
+    val btnSettings = MD3TabButton("Settings", false)
+    val btnLogs = MD3TabButton("Logs", false)
+
+    val gameCard = StatCard("Active Game", "Scanning...")
+    val charaCard = StatCard("Character", "N/A")
+    val stageCard = StatCard("Stage", "N/A")
+    val scoreCard = StatCard("Score", "0")
+    val livesCard = StatCard("Lives/Miss", "0")
+    val bombsCard = StatCard("Bombs", "0")
+    val grazeCard = StatCard("Graze", "0")
+    val powerCard = StatCard("Power", "0.00")
+    val pointCard = StatCard("Point/PIV", "0")
+    val cherryCard = StatCard("Cherry Max", "N/A")
+    val spellCard = StatCard("Spell Card", "N/A")
+
+    val langLabel = javax.swing.JLabel()
+    val langComboBox = javax.swing.JComboBox(arrayOf("简体中文", "English", "日本語"))
+    val portLabel = javax.swing.JLabel()
+    val portField = MD3TextField(8)
+    val chatboxCheckBox = javax.swing.JCheckBox()
+    val btnSaveSettings = MD3Button("Save Settings", MD3Button.ButtonType.FILLED)
+
+    val logArea = javax.swing.JTextArea().apply {
+        isEditable = false
+        background = Color(0x15, 0x14, 0x19)
+        foreground = Color(0xE6, 0xE1, 0xE5)
+        font = getMonospacedFont(12)
+        border = javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8)
+    }
+
+    val btnClear = MD3Button("", MD3Button.ButtonType.OUTLINED, radius = 20)
+    val btnCopy = MD3Button("", MD3Button.ButtonType.OUTLINED, radius = 20)
+
+    val statusPillLabel = javax.swing.JLabel().apply {
+        foreground = MD3Color.TextPrimary
+        font = getAppFont(Font.BOLD, 12)
+    }
+    
+    val statusPill = object : javax.swing.JPanel() {
+        override fun paintComponent(g: Graphics) {
+            val g2d = g.create() as Graphics2D
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2d.color = when (activeStatus) {
+                ScannerStatus.SCANNING -> MD3Color.SecondaryContainer
+                is ScannerStatus.PLAYING -> MD3Color.AccentGreen
+            }
+            g2d.fillRoundRect(0, 0, width, height, height, height)
+            g2d.dispose()
+        }
+    }.apply {
+        isOpaque = false
+        layout = GridBagLayout()
+        preferredSize = Dimension(160, 32)
+        add(statusPillLabel)
+    }
+
+    init {
+        title = "THOSC_BOX"
+        defaultCloseOperation = javax.swing.JFrame.DO_NOTHING_ON_CLOSE
+        setSize(850, 600)
+        setLocationRelativeTo(null)
+        background = MD3Color.Background
+        contentPane.background = MD3Color.Background
+        iconImage = createTrayIconImage()
+
+        addWindowListener(object : java.awt.event.WindowAdapter() {
+            override fun windowClosing(e: java.awt.event.WindowEvent?) {
+                if (SystemTray.isSupported()) {
+                    isVisible = false
+                } else {
+                    System.exit(0)
+                }
+            }
+        })
+
+        val rootPanel = javax.swing.JPanel(BorderLayout()).apply {
+            background = MD3Color.Background
+            border = javax.swing.BorderFactory.createEmptyBorder(16, 16, 16, 16)
+        }
+
+        val headerPanel = javax.swing.JPanel(BorderLayout()).apply {
+            background = MD3Color.Background
+            isOpaque = false
+            border = javax.swing.BorderFactory.createEmptyBorder(0, 0, 16, 0)
+        }
+        val titleTextPanel = javax.swing.JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            background = MD3Color.Background
+            isOpaque = false
+        }
+        val mainTitleLabel = javax.swing.JLabel("THOSC_BOX").apply {
+            foreground = MD3Color.Primary
+            font = getAppFont(Font.BOLD, 22)
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        val subTitleLabel = javax.swing.JLabel("VRChat OSC Bridge v1.0").apply {
+            foreground = MD3Color.TextSecondary
+            font = getAppFont(Font.PLAIN, 12)
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        titleTextPanel.add(mainTitleLabel)
+        titleTextPanel.add(subTitleLabel)
+        headerPanel.add(titleTextPanel, BorderLayout.WEST)
+        headerPanel.add(statusPill, BorderLayout.EAST)
+        rootPanel.add(headerPanel, BorderLayout.NORTH)
+
+        val bodyPanel = javax.swing.JPanel(BorderLayout()).apply {
+            background = MD3Color.Background
+            isOpaque = false
+        }
+
+        val sidebarPanel = javax.swing.JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            background = MD3Color.Background
+            isOpaque = false
+            preferredSize = Dimension(180, 0)
+            border = javax.swing.BorderFactory.createEmptyBorder(0, 0, 0, 16)
+        }
+
+        btnDashboard.maximumSize = Dimension(160, 40)
+        btnSettings.maximumSize = Dimension(160, 40)
+        btnLogs.maximumSize = Dimension(160, 40)
+
+        sidebarPanel.add(btnDashboard)
+        sidebarPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 8)))
+        sidebarPanel.add(btnSettings)
+        sidebarPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 8)))
+        sidebarPanel.add(btnLogs)
+
+        bodyPanel.add(sidebarPanel, BorderLayout.WEST)
+
+        val contentCardLayout = CardLayout()
+        val contentPanel = javax.swing.JPanel(contentCardLayout).apply {
+            background = MD3Color.Background
+            isOpaque = false
+        }
+
+        btnDashboard.addActionListener {
+            btnDashboard.updateActive(true)
+            btnSettings.updateActive(false)
+            btnLogs.updateActive(false)
+            contentCardLayout.show(contentPanel, "dashboard")
+        }
+        btnSettings.addActionListener {
+            btnDashboard.updateActive(false)
+            btnSettings.updateActive(true)
+            btnLogs.updateActive(false)
+            contentCardLayout.show(contentPanel, "settings")
+        }
+        btnLogs.addActionListener {
+            btnDashboard.updateActive(false)
+            btnSettings.updateActive(false)
+            btnLogs.updateActive(true)
+            contentCardLayout.show(contentPanel, "logs")
+        }
+
+        val dashboardPanel = javax.swing.JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            background = MD3Color.Background
+            isOpaque = false
+        }
+
+        val topCardsPanel = javax.swing.JPanel(GridLayout(1, 2, 12, 12)).apply {
+            background = MD3Color.Background
+            isOpaque = false
+            maximumSize = Dimension(Short.MAX_VALUE.toInt(), 80)
+        }
+        topCardsPanel.add(gameCard)
+        topCardsPanel.add(charaCard)
+
+        dashboardPanel.add(topCardsPanel)
+        dashboardPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 12)))
+
+        val statsGridPanel = javax.swing.JPanel(GridLayout(3, 3, 12, 12)).apply {
+            background = MD3Color.Background
+            isOpaque = false
+        }
+        statsGridPanel.add(stageCard)
+        statsGridPanel.add(scoreCard)
+        statsGridPanel.add(spellCard)
+        
+        statsGridPanel.add(livesCard)
+        statsGridPanel.add(bombsCard)
+        statsGridPanel.add(powerCard)
+        
+        statsGridPanel.add(grazeCard)
+        statsGridPanel.add(pointCard)
+        statsGridPanel.add(cherryCard)
+
+        dashboardPanel.add(statsGridPanel)
+        contentPanel.add(dashboardPanel, "dashboard")
+
+        val settingsPanel = javax.swing.JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            background = MD3Color.Background
+            isOpaque = false
+        }
+
+        val settingsCard = MD3Card().apply {
+            layout = GridBagLayout()
+            background = MD3Color.Surface
+        }
+
+        val gbc = GridBagConstraints().apply {
+            fill = GridBagConstraints.HORIZONTAL
+            insets = Insets(8, 8, 8, 8)
+            gridx = 0
+            gridy = 0
+            weightx = 0.3
+        }
+
+        langLabel.foreground = MD3Color.TextPrimary
+        langLabel.font = getAppFont(Font.BOLD, 14)
+        settingsCard.add(langLabel, gbc)
+
+        gbc.gridx = 1
+        gbc.weightx = 0.7
+        langComboBox.apply {
+            background = MD3Color.Surface
+            foreground = MD3Color.TextPrimary
+            font = getAppFont(Font.PLAIN, 14)
+        }
+        settingsCard.add(langComboBox, gbc)
+
+        gbc.gridx = 0
+        gbc.gridy = 1
+        gbc.weightx = 0.3
+        portLabel.foreground = MD3Color.TextPrimary
+        portLabel.font = getAppFont(Font.BOLD, 14)
+        settingsCard.add(portLabel, gbc)
+
+        gbc.gridx = 1
+        gbc.weightx = 0.7
+        settingsCard.add(portField, gbc)
+
+        gbc.gridx = 0
+        gbc.gridy = 2
+        gbc.gridwidth = 2
+        gbc.weightx = 1.0
+        chatboxCheckBox.apply {
+            background = MD3Color.Surface
+            foreground = MD3Color.TextPrimary
+            isFocusable = false
+            isRolloverEnabled = true
+            icon = MD3CheckboxIcon()
+            iconTextGap = 8
+            font = getAppFont(Font.PLAIN, 14)
+        }
+        settingsCard.add(chatboxCheckBox, gbc)
+
+        gbc.gridy = 3
+        gbc.insets = Insets(16, 8, 8, 8)
+        settingsCard.add(btnSaveSettings, gbc)
+
+        val settingsWrapper = javax.swing.JPanel(BorderLayout()).apply {
+            background = MD3Color.Background
+            isOpaque = false
+        }
+        settingsWrapper.add(settingsCard, BorderLayout.NORTH)
+        settingsPanel.add(settingsWrapper)
+        contentPanel.add(settingsPanel, "settings")
+
+        val logsPanel = javax.swing.JPanel(BorderLayout()).apply {
+            background = MD3Color.Background
+            isOpaque = false
+        }
+        
+        btnClear.apply {
+            font = getAppFont(Font.BOLD, 12)
+            addActionListener {
+                logArea.text = ""
+            }
+        }
+        btnCopy.apply {
+            font = getAppFont(Font.BOLD, 12)
+            addActionListener {
+                val selection = java.awt.datatransfer.StringSelection(logArea.text)
+                java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+            }
+        }
+        val debugControlsPanel = javax.swing.JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 4)).apply {
+            background = MD3Color.Background
+            isOpaque = false
+            add(btnClear)
+            add(btnCopy)
+        }
+        logsPanel.add(debugControlsPanel, BorderLayout.NORTH)
+
+        val logScrollPane = javax.swing.JScrollPane(logArea).apply {
+            border = javax.swing.BorderFactory.createLineBorder(MD3Color.Outline, 1)
+            background = Color(0x15, 0x14, 0x19)
+        }
+        logsPanel.add(logScrollPane, BorderLayout.CENTER)
+        contentPanel.add(logsPanel, "logs")
+
+        bodyPanel.add(contentPanel, BorderLayout.CENTER)
+        rootPanel.add(bodyPanel, BorderLayout.CENTER)
+
+        contentPane.add(rootPanel)
+
+        val initialIndex = when (activeLang) {
+            "zh" -> 0
+            "en" -> 1
+            "ja" -> 2
+            else -> 0
+        }
+        langComboBox.selectedIndex = initialIndex
+        portField.text = activeOscPort.toString()
+        chatboxCheckBox.isSelected = activeEnableChatbox
+
+        btnSaveSettings.addActionListener {
+            val selectedLang = when (langComboBox.selectedIndex) {
+                0 -> "zh"
+                1 -> "en"
+                2 -> "ja"
+                else -> "zh"
+            }
+            val enteredPort = portField.text.toIntOrNull() ?: 9000
+            val isChatboxEnabled = chatboxCheckBox.isSelected
+
+            changeSettings(selectedLang, enteredPort, isChatboxEnabled)
+
+            showMD3MessageDialog(
+                this@MainWindow,
+                getLocalizedString("save_success", activeLang)
+            )
+        }
+
+        refreshUILabels()
+    }
+
+    fun updateStatusPill() {
+        statusPillLabel.text = when (val s = activeStatus) {
+            ScannerStatus.SCANNING -> getLocalizedString("status_scanning", activeLang)
+            is ScannerStatus.PLAYING -> s.gameName
+        }
+        statusPillLabel.foreground = when (activeStatus) {
+            ScannerStatus.SCANNING -> MD3Color.TextPrimary
+            is ScannerStatus.PLAYING -> MD3Color.OnPrimary
+        }
+        statusPill.repaint()
+    }
+
+    fun refreshUILabels() {
+        btnDashboard.text = getLocalizedString("tab_dashboard", activeLang)
+        btnSettings.text = getLocalizedString("tab_settings", activeLang)
+        btnLogs.text = getLocalizedString("tab_logs", activeLang)
+
+        gameCard.updateLabel(getLocalizedString("stat_game", activeLang))
+        charaCard.updateLabel(getLocalizedString("stat_chara", activeLang))
+        stageCard.updateLabel(getLocalizedString("stat_stage", activeLang))
+        scoreCard.updateLabel(getLocalizedString("stat_score", activeLang))
+        livesCard.updateLabel(getLocalizedString("stat_lives", activeLang))
+        bombsCard.updateLabel(getLocalizedString("stat_bombs", activeLang))
+        grazeCard.updateLabel(getLocalizedString("stat_graze", activeLang))
+        powerCard.updateLabel(getLocalizedString("stat_power", activeLang))
+        pointCard.updateLabel(getLocalizedString("stat_point", activeLang))
+        cherryCard.updateLabel(getLocalizedString("stat_cherry", activeLang))
+        spellCard.updateLabel(getLocalizedString("stat_spell", activeLang))
+
+        langLabel.text = getLocalizedString("settings_lang", activeLang)
+        portLabel.text = getLocalizedString("settings_port", activeLang)
+        chatboxCheckBox.text = getLocalizedString("settings_chatbox", activeLang)
+        btnSaveSettings.text = getLocalizedString("btn_save", activeLang)
+        btnClear.text = getLocalizedString("btn_clear", activeLang)
+        btnCopy.text = getLocalizedString("btn_copy", activeLang)
+
+        title = getLocalizedString("title_app", activeLang)
+
+        updateStatusPill()
+    }
+
+    fun updateScanningStatus() {
+        val scanText = getLocalizedString("status_scanning", activeLang)
+        gameCard.updateValue(scanText)
+        charaCard.updateValue("N/A")
+        stageCard.updateValue("N/A")
+        scoreCard.updateValue("0")
+        livesCard.updateValue("0")
+        bombsCard.updateValue("0")
+        grazeCard.updateValue("0")
+        powerCard.updateValue("0.00")
+        pointCard.updateValue("0")
+        cherryCard.updateValue("N/A")
+        spellCard.updateValue("N/A")
+    }
+}
+
 
 /**
  * Finds process ID by process name.
@@ -291,7 +1428,103 @@ fun readActiveSpellId(processHandle: WinNT.HANDLE, baseAddr: Long, config: GameC
     return spellId
 }
 
-fun getSpellName(gameId: String, spellId: Int): String {
+fun getLocalizedGameName(gameId: String, lang: String): String {
+    return when (gameId) {
+        "th06" -> when (lang) {
+            "zh" -> "东方红魔乡 ~ Embodiment of Scarlet Devil"
+            "ja" -> "東方紅魔郷 ~ Embodiment of Scarlet Devil"
+            else -> "Embodiment of Scarlet Devil"
+        }
+        "th07" -> when (lang) {
+            "zh" -> "东方妖妖梦 ~ Perfect Cherry Blossom"
+            "ja" -> "東方妖々夢 ~ Perfect Cherry Blossom"
+            else -> "Perfect Cherry Blossom"
+        }
+        "th08" -> when (lang) {
+            "zh" -> "东方永夜抄 ~ Imperishable Night"
+            "ja" -> "東方永夜抄 ~ Imperishable Night"
+            else -> "Imperishable Night"
+        }
+        "th09" -> when (lang) {
+            "zh" -> "东方花映冢 ~ Phantasmagoria of Flower View"
+            "ja" -> "東方花映塚 ~ Phantasmagoria of Flower View"
+            else -> "Phantasmagoria of Flower View"
+        }
+        "th10" -> when (lang) {
+            "zh" -> "东方风神录 ~ Mountain of Faith"
+            "ja" -> "東方風神録 ~ Mountain of Faith"
+            else -> "Mountain of Faith"
+        }
+        "th11" -> when (lang) {
+            "zh" -> "东方地灵殿 ~ Subterranean Animism"
+            "ja" -> "東方地霊殿 ~ Subterranean Animism"
+            else -> "Subterranean Animism"
+        }
+        "th12" -> when (lang) {
+            "zh" -> "东方星莲船 ~ Undefined Fantastic Object"
+            "ja" -> "東方星蓮船 ~ Undefined Fantastic Object"
+            else -> "Undefined Fantastic Object"
+        }
+        "th13" -> when (lang) {
+            "zh" -> "东方神灵庙 ~ Ten Desires"
+            "ja" -> "東方神霊廟 ~ Ten Desires"
+            else -> "Ten Desires"
+        }
+        "th14" -> when (lang) {
+            "zh" -> "东方辉针城 ~ Double Dealing Character"
+            "ja" -> "東方輝針城 ~ Double Dealing Character"
+            else -> "Double Dealing Character"
+        }
+        "th15" -> when (lang) {
+            "zh" -> "东方绀珠传 ~ Legacy of Lunatic Kingdom"
+            "ja" -> "東方紺珠伝 ~ Legacy of Lunatic Kingdom"
+            else -> "Legacy of Lunatic Kingdom"
+        }
+        "th16" -> when (lang) {
+            "zh" -> "东方天空璋 ~ Hidden Star in Four Seasons"
+            "ja" -> "東方天空璋 ~ Hidden Star in Four Seasons"
+            else -> "Hidden Star in Four Seasons"
+        }
+        "th17" -> when (lang) {
+            "zh" -> "东方鬼形兽 ~ Wily Beast and Weakest Creature"
+            "ja" -> "東方鬼形獣 ~ Wily Beast and Weakest Creature"
+            else -> "Wily Beast and Weakest Creature"
+        }
+        "th18" -> when (lang) {
+            "zh" -> "东方虹龙洞 ~ Unconnected Marketeers"
+            "ja" -> "東方虹龍洞 ~ Unconnected Marketeers"
+            else -> "Unconnected Marketeers"
+        }
+        "th19" -> when (lang) {
+            "zh" -> "东方兽王园 ~ Unfinished Dream of All Living Ghost"
+            "ja" -> "東方獣王園 ~ Unfinished Dream of All Living Ghost"
+            else -> "Unfinished Dream of All Living Ghost"
+        }
+        "th20" -> when (lang) {
+            "zh" -> "东方锦上京 ~ Fossilized Wonders."
+            "ja" -> "東方錦上京 ~ Fossilized Wonders."
+            else -> "Fossilized Wonders."
+        }
+        else -> gameId
+    }
+}
+
+fun extractLocalizedText(rawText: String, lang: String): String {
+    val regex = """(.+?)\s*\((.+?)\)""".toRegex()
+    val matchResult = regex.matchEntire(rawText)
+    if (matchResult != null) {
+        val zh = matchResult.groups[1]?.value?.trim() ?: rawText
+        val en = matchResult.groups[2]?.value?.trim() ?: rawText
+        return when (lang) {
+            "zh" -> zh
+            "en" -> en
+            else -> rawText
+        }
+    }
+    return rawText
+}
+
+fun getSpellName(gameId: String, spellId: Int, lang: String): String {
     val th14Map = mapOf(
         100 to "辉针「鬼之杰作」 (Shining Needle \"Oni's Masterpiece\")",
         101 to "辉针「鬼之杰作」 (Shining Needle \"Oni's Masterpiece\")",
@@ -336,17 +1569,64 @@ fun getSpellName(gameId: String, spellId: Int): String {
         86 to "「弹幕无产阶级化」 (Danmaku Proletariat)",
         87 to "「弹幕无产阶级化」 (Danmaku Proletariat)"
     )
-    return when (gameId) {
+    val rawText = when (gameId) {
         "th14" -> th14Map[spellId] ?: "Spell ID $spellId"
         "th16" -> th16Map[spellId] ?: "Spell ID $spellId"
         "th17" -> th17Map[spellId] ?: "Spell ID $spellId"
         "th18" -> th18Map[spellId] ?: "Spell ID $spellId"
         else -> "Spell ID $spellId"
     }
+
+    return when (lang) {
+        "ja" -> {
+            val jaMap = mapOf(
+                "th14_100" to "輝針「鬼の傑作」",
+                "th14_101" to "輝針「鬼の傑作」",
+                "th14_102" to "輝針「針の山なぞる鬼の傑作」",
+                "th14_103" to "輝針「針の山なぞる鬼の傑作」",
+                "th14_104" to "小槌「大きくなあれ」",
+                "th14_105" to "小槌「大きくなあれ」",
+                "th14_106" to "小槌「もっと大きくなあれ」",
+                "th14_107" to "小槌「もっと大きくなあれ」",
+                "th14_108" to "「打ち出の小槌の襲撃」",
+                "th14_109" to "「打ち出の小槌の襲撃」",
+                "th14_110" to "「逆襲の打ち出の小槌」",
+                "th14_111" to "「逆襲の打ち出の小槌」",
+                "th14_112" to "「小人の巨大な逆襲」",
+                "th14_113" to "「小人の巨大な逆襲」",
+                "th14_114" to "「小人国の反乱」",
+                "th14_115" to "「小人国の反乱」",
+                "th14_116" to "「七人の小人」",
+                "th14_117" to "「七人の小人」",
+                "th14_118" to "「押し入れの七人の小人」",
+                "th14_119" to "「押し入れの七人の小人」",
+                "th16_106" to "「裏転生の秘儀」",
+                "th16_107" to "「裏転生の秘儀」",
+                "th16_108" to "秘儀「後戸の生命体」",
+                "th16_109" to "秘儀「後戸の生命体」",
+                "th16_110" to "秘儀「背面の暗黒桜吹雪」",
+                "th16_111" to "秘儀「背面の暗黒桜吹雪」",
+                "th16_112" to "秘儀「裏七星」",
+                "th16_113" to "秘儀「裏七星」",
+                "th17_84" to "線形「線形彫刻」",
+                "th17_85" to "線形「線形彫刻」",
+                "th17_86" to "埴輪「アイドル防衛隊」",
+                "th17_87" to "埴輪「アイドル防衛隊」",
+                "th18_84" to "「無主の取引」",
+                "th18_85" to "「無主の取引」",
+                "th18_86" to "「弾幕のプロレタリア化」",
+                "th18_87" to "「弾幕のプロレタリア化」"
+            )
+            jaMap["${gameId}_$spellId"] ?: extractLocalizedText(rawText, "ja")
+        }
+        "zh" -> extractLocalizedText(rawText, "zh")
+        "en" -> extractLocalizedText(rawText, "en")
+        else -> rawText
+    }
 }
 
-fun getDifficultyName(gameId: String, difficulty: Int): String {
-    return when (difficulty) {
+fun getDifficultyName(gameId: String, difficulty: Int, lang: String): String {
+    val basic = when (difficulty) {
         0 -> "Easy"
         1 -> "Normal"
         2 -> "Hard"
@@ -355,38 +1635,676 @@ fun getDifficultyName(gameId: String, difficulty: Int): String {
         5 -> if (gameId == "th07") "Phantasm" else "Difficulty $difficulty"
         else -> "Difficulty $difficulty"
     }
+    return when (lang) {
+        "zh" -> when (difficulty) {
+            0 -> "简单 (Easy)"
+            1 -> "普通 (Normal)"
+            2 -> "困难 (Hard)"
+            3 -> "疯狂 (Lunatic)"
+            4 -> "番外 (Extra)"
+            5 -> if (gameId == "th07") "幻想 (Phantasm)" else "难度 $difficulty"
+            else -> "难度 $difficulty"
+        }
+        "ja" -> when (difficulty) {
+            0 -> "イージー (Easy)"
+            1 -> "ノーマル (Normal)"
+            2 -> "ハード (Hard)"
+            3 -> "ルナティック (Lunatic)"
+            4 -> "エキストラ (Extra)"
+            5 -> if (gameId == "th07") "ファンタズム (Phantasm)" else "難易度 $difficulty"
+            else -> "難易度 $difficulty"
+        }
+        else -> basic
+    }
+}
+
+fun getCharaAndShottypeName(gameId: String, characterId: Int, subshotId: Int, lang: String): String {
+    return when (gameId) {
+        "th06" -> {
+            val charStr = when (lang) {
+                "zh" -> if (characterId == 0) "博丽灵梦" else "雾雨魔理沙"
+                "ja" -> if (characterId == 0) "博麗霊夢" else "霧雨魔理沙"
+                else -> if (characterId == 0) "Reimu" else "Marisa"
+            }
+            val shotStr = when (lang) {
+                "zh" -> if (characterId == 0) (if (subshotId == 0) "灵符 (Reimu A)" else "梦符 (Reimu B)") else (if (subshotId == 0) "魔符 (Marisa A)" else "恋符 (Marisa B)")
+                "ja" -> if (characterId == 0) (if (subshotId == 0) "霊符 (Reimu A)" else "夢符 (Reimu B)") else (if (subshotId == 0) "魔符 (Marisa A)" else "恋符 (Marisa B)")
+                else -> if (characterId == 0) (if (subshotId == 0) "Reimu A" else "Reimu B") else (if (subshotId == 0) "Marisa A" else "Marisa B")
+            }
+            "$charStr ($shotStr)"
+        }
+        "th07" -> {
+            val charStr = when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; else -> "十六夜咲夜" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; else -> "十六夜咲夜" }
+                else -> when (characterId) { 0 -> "Reimu"; 1 -> "Marisa"; else -> "Sakuya" }
+            }
+            val shotStr = when (lang) {
+                "zh" -> when (characterId) {
+                    0 -> if (subshotId == 0) "灵符 (Reimu A)" else "梦符 (Reimu B)"
+                    1 -> if (subshotId == 0) "魔符 (Marisa A)" else "恋符 (Marisa B)"
+                    else -> if (subshotId == 0) "幻符 (Sakuya A)" else "时符 (Sakuya B)"
+                }
+                "ja" -> when (characterId) {
+                    0 -> if (subshotId == 0) "霊符 (Reimu A)" else "夢符 (Reimu B)"
+                    1 -> if (subshotId == 0) "魔符 (Marisa A)" else "恋符 (Marisa B)"
+                    else -> if (subshotId == 0) "幻符 (Sakuya A)" else "時符 (Sakuya B)"
+                }
+                else -> when (characterId) {
+                    0 -> if (subshotId == 0) "Reimu A" else "Reimu B"
+                    1 -> if (subshotId == 0) "Marisa A" else "Marisa B"
+                    else -> if (subshotId == 0) "Sakuya A" else "Sakuya B"
+                }
+            }
+            "$charStr ($shotStr)"
+        }
+        "th08" -> {
+            when (lang) {
+                "zh" -> when (subshotId) {
+                    0 -> "结界组 (Reimu & Yukari)"; 1 -> "咏唱组 (Marisa & Alice)"; 2 -> "红魔组 (Sakuya & Remilia)"; 3 -> "幽冥组 (Youmu & Yuyuko)"
+                    4 -> "博丽灵梦"; 5 -> "八云紫"; 6 -> "雾雨魔理沙"; 7 -> "爱丽丝"; 8 -> "十六夜咲夜"; 9 -> "蕾米莉亚"; 10 -> "魂魄妖梦"; 11 -> "西行寺幽幽子"
+                    else -> "未知机体 ($subshotId)"
+                }
+                "ja" -> when (subshotId) {
+                    0 -> "結界組 (Reimu & Yukari)"; 1 -> "詠唱組 (Marisa & Alice)"; 2 -> "紅魔組 (Sakuya & Remilia)"; 3 -> "幽冥組 (Youmu & Yuyuko)"
+                    4 -> "博麗霊夢"; 5 -> "八雲紫"; 6 -> "霧雨魔理沙"; 7 -> "アリス"; 8 -> "十六夜咲夜"; 9 -> "レミリア"; 10 -> "魂魄妖夢"; 11 -> "西行寺幽々子"
+                    else -> "未知機体 ($subshotId)"
+                }
+                else -> when (subshotId) {
+                    0 -> "Border Team (Reimu & Yukari)"; 1 -> "Magic Team (Marisa & Alice)"; 2 -> "Scarlet Team (Sakuya & Remilia)"; 3 -> "Netherworld Team (Youmu & Yuyuko)"
+                    4 -> "Reimu Hakurei"; 5 -> "Yukari Yakumo"; 6 -> "Marisa Kirisame"; 7 -> "Alice Margatroid"; 8 -> "Sakuya Izayoi"; 9 -> "Remilia Scarlet"; 10 -> "Youmu Konpaku"; 11 -> "Yuyuko Saigyouji"
+                    else -> "Unknown Shottype ($subshotId)"
+                }
+            }
+        }
+        "th10" -> {
+            val charStr = when (lang) {
+                "zh" -> if (characterId == 0) "博丽灵梦" else "雾雨魔理沙"
+                "ja" -> if (characterId == 0) "博麗霊夢" else "霧雨魔理沙"
+                else -> if (characterId == 0) "Reimu" else "Marisa"
+            }
+            val shotStr = when (lang) {
+                "zh" -> if (characterId == 0) {
+                    when (subshotId) { 0 -> "诱导装备 (Reimu A)"; 1 -> "前方集中攻击装备 (Reimu B)"; else -> "封魔针装备 (Reimu C)" }
+                } else {
+                    when (subshotId) { 0 -> "高威力追踪装备 (Marisa A)"; 1 -> "前方集中高威能装备 (Marisa B)"; else -> "超范围扫荡装备 (Marisa C)" }
+                }
+                "ja" -> if (characterId == 0) {
+                    when (subshotId) { 0 -> "誘導装備 (Reimu A)"; 1 -> "前方集中装備 (Reimu B)"; else -> "封魔針装備 (Reimu C)" }
+                } else {
+                    when (subshotId) { 0 -> "高威力誘導装備 (Marisa A)"; 1 -> "前方集中装備 (Marisa B)"; else -> "超範囲装備 (Marisa C)" }
+                }
+                else -> if (characterId == 0) {
+                    when (subshotId) { 0 -> "Reimu A (Homing)"; 1 -> "Reimu B (Forward)"; else -> "Reimu C (Seal)" }
+                } else {
+                    when (subshotId) { 0 -> "Marisa A (Homing)"; 1 -> "Marisa B (Forward)"; else -> "Marisa C (Spread)" }
+                }
+            }
+            "$charStr ($shotStr)"
+        }
+        "th11" -> {
+            val charStr = when (lang) {
+                "zh" -> if (characterId == 0) "博丽灵梦" else "雾雨魔理沙"
+                "ja" -> if (characterId == 0) "博麗霊夢" else "霧雨魔理沙"
+                else -> if (characterId == 0) "Reimu" else "Marisa"
+            }
+            val shotStr = when (lang) {
+                "zh" -> if (characterId == 0) {
+                    when (subshotId) { 0 -> "八云紫支援 (Reimu & Yukari)"; 1 -> "伊吹萃香支援 (Reimu & Suika)"; else -> "射命丸文支援 (Reimu & Aya)" }
+                } else {
+                    when (subshotId) { 0 -> "爱丽丝支援 (Marisa & Alice)"; 1 -> "帕秋莉支援 (Marisa & Patchouli)"; else -> "河城荷取支援 (Marisa & Nitori)" }
+                }
+                "ja" -> if (characterId == 0) {
+                    when (subshotId) { 0 -> "八雲紫支援 (Reimu & Yukari)"; 1 -> "伊吹萃香支援 (Reimu & Suika)"; else -> "射命丸文支援 (Reimu & Aya)" }
+                } else {
+                    when (subshotId) { 0 -> "アリス支援 (Marisa & Alice)"; 1 -> "パチュリー支援 (Marisa & Patchouli)"; else -> "河城にとり支援 (Marisa & Nitori)" }
+                }
+                else -> if (characterId == 0) {
+                    when (subshotId) { 0 -> "Reimu & Yukari"; 1 -> "Reimu & Suika"; else -> "Reimu & Aya" }
+                } else {
+                    when (subshotId) { 0 -> "Marisa & Alice"; 1 -> "Marisa & Patchouli"; else -> "Marisa & Nitori" }
+                }
+            }
+            "$charStr ($shotStr)"
+        }
+        "th12" -> {
+            val charStr = when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; else -> "东风谷早苗" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; else -> "東風谷早苗" }
+                else -> when (characterId) { 0 -> "Reimu"; 1 -> "Marisa"; else -> "Sanae" }
+            }
+            val shotStr = when (lang) {
+                "zh" -> when (characterId) {
+                    0 -> if (subshotId == 0) "巫女 (Reimu A)" else "宝船 (Reimu B)"
+                    1 -> if (subshotId == 0) "激光 (Marisa A)" else "星莲船 (Marisa B)"
+                    else -> if (subshotId == 0) "蛇 (Sanae A)" else "蛙 (Sanae B)"
+                }
+                "ja" -> when (characterId) {
+                    0 -> if (subshotId == 0) "巫女 (Reimu A)" else "宝船 (Reimu B)"
+                    1 -> if (subshotId == 0) "レーザー (Marisa A)" else "星蓮船 (Marisa B)"
+                    else -> if (subshotId == 0) "蛇 (Sanae A)" else "蛙 (Sanae B)"
+                }
+                else -> when (characterId) {
+                    0 -> if (subshotId == 0) "Reimu A" else "Reimu B"
+                    1 -> if (subshotId == 0) "Marisa A" else "Marisa B"
+                    else -> if (subshotId == 0) "Sanae A" else "Sanae B"
+                }
+            }
+            "$charStr ($shotStr)"
+        }
+        "th13" -> {
+            when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; 2 -> "东风谷早苗"; else -> "魂魄妖梦" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; 2 -> "東風谷早苗"; else -> "魂魄妖夢" }
+                else -> when (characterId) { 0 -> "Reimu Hakurei"; 1 -> "Marisa Kirisame"; 2 -> "Sanae Kochiya"; else -> "Youmu Konpaku" }
+            }
+        }
+        "th14" -> {
+            val charStr = when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; else -> "十六夜咲夜" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; else -> "十六夜咲夜" }
+                else -> when (characterId) { 0 -> "Reimu"; 1 -> "Marisa"; else -> "Sakuya" }
+            }
+            val shotStr = when (lang) {
+                "zh" -> when (characterId) {
+                    0 -> if (subshotId == 0) "妖器使用 (Reimu A)" else "妖器不使用 (Reimu B)"
+                    1 -> if (subshotId == 0) "妖器使用 (Marisa A)" else "妖器不使用 (Marisa B)"
+                    else -> if (subshotId == 0) "妖器使用 (Sakuya A)" else "妖器不使用 (Sakuya B)"
+                }
+                "ja" -> when (characterId) {
+                    0 -> if (subshotId == 0) "妖器使用 (Reimu A)" else "妖器不使用 (Reimu B)"
+                    1 -> if (subshotId == 0) "妖器使用 (Marisa A)" else "妖器不使用 (Marisa B)"
+                    else -> if (subshotId == 0) "妖器使用 (Sakuya A)" else "妖器不使用 (Sakuya B)"
+                }
+                else -> when (characterId) {
+                    0 -> if (subshotId == 0) "Reimu A (Weapon)" else "Reimu B (No Weapon)"
+                    1 -> if (subshotId == 0) "Marisa A (Weapon)" else "Marisa B (No Weapon)"
+                    else -> if (subshotId == 0) "Sakuya A (Weapon)" else "Sakuya B (No Weapon)"
+                }
+            }
+            "$charStr ($shotStr)"
+        }
+        "th15" -> {
+            when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; 2 -> "东风谷早苗"; else -> "铃仙·优昙华院·因幡" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; 2 -> "東風谷早苗"; else -> "鈴仙・優曇華院・イナバ" }
+                else -> when (characterId) { 0 -> "Reimu Hakurei"; 1 -> "Marisa Kirisame"; 2 -> "Sanae Kochiya"; else -> "Reisen Udongein Inaba" }
+            }
+        }
+        "th16" -> {
+            val charStr = when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "琪露诺"; 2 -> "射命丸文"; else -> "雾雨魔理沙" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "チルノ"; 2 -> "射命丸文"; else -> "霧雨魔理沙" }
+                else -> when (characterId) { 0 -> "Reimu"; 1 -> "Cirno"; 2 -> "Aya"; else -> "Marisa" }
+            }
+            val shotStr = when (lang) {
+                "zh" -> when (subshotId) { 0 -> "春 (Spring)"; 1 -> "夏 (Summer)"; 2 -> "秋 (Autumn)"; 3 -> "冬 (Winter)"; else -> "土用 (Dog Days)" }
+                "ja" -> when (subshotId) { 0 -> "春 (Spring)"; 1 -> "夏 (Summer)"; 2 -> "秋 (Autumn)"; 3 -> "冬 (Winter)"; else -> "土用 (Dog Days)" }
+                else -> when (subshotId) { 0 -> "Spring"; 1 -> "Summer"; 2 -> "Autumn"; 3 -> "Winter"; else -> "Dog Days" }
+            }
+            "$charStr [$shotStr]"
+        }
+        "th17" -> {
+            val charStr = when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; else -> "魂魄妖梦" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; else -> "魂魄妖夢" }
+                else -> when (characterId) { 0 -> "Reimu"; 1 -> "Marisa"; else -> "Youmu" }
+            }
+            val shotStr = when (lang) {
+                "zh" -> when (subshotId) { 0 -> "狼灵 (Wolf)"; 1 -> "獭灵 (Otter)"; else -> "鹰灵 (Eagle)" }
+                "ja" -> when (subshotId) { 0 -> "狼 (Wolf)"; 1 -> "カワウソ (Otter)"; else -> "大鷲 (Eagle)" }
+                else -> when (subshotId) { 0 -> "Wolf"; 1 -> "Otter"; else -> "Eagle" }
+            }
+            "$charStr ($shotStr)"
+        }
+        "th18" -> {
+            when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; 2 -> "十六夜咲夜"; else -> "东风谷早苗" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; 2 -> "十六夜咲夜"; else -> "東風谷早苗" }
+                else -> when (characterId) { 0 -> "Reimu Hakurei"; 1 -> "Marisa Kirisame"; 2 -> "Sakuya Izayoi"; else -> "Sanae Kochiya" }
+            }
+        }
+        "th19" -> {
+            when (lang) {
+                "zh" -> when (characterId) {
+                    0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; 2 -> "东风谷早苗"; 3 -> "八云蓝"; 4 -> "高丽野阿吽"
+                    5 -> "纳兹琳"; 6 -> "清兰"; 7 -> "火焰猫燐"; 8 -> "管牧典"; 9 -> "二ッ岩猯藏"
+                    10 -> "吉吊八千慧"; 11 -> "骊驹早鬼"; 12 -> "饕餮尤魔"; 13 -> "伊吹萃香"; 14 -> "孙美天"
+                    15 -> "山城惑衣"; 16 -> "天火人千亦"; 17 -> "豫母都日狭美"; 18 -> "日白残无"
+                    else -> "未知人物 ($characterId)"
+                }
+                "ja" -> when (characterId) {
+                    0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; 2 -> "東風谷早苗"; 3 -> "八雲藍"; 4 -> "高麗野アウン"
+                    5 -> "ナズーリン"; 6 -> "清蘭"; 7 -> "火焔猫燐"; 8 -> "菅牧典"; 9 -> "二ッ岩マミゾウ"
+                    10 -> "吉吊八千慧"; 11 -> "驪駒早鬼"; 12 -> "饕餮尤魔"; 13 -> "伊吹萃香"; 14 -> "孫美天"
+                    15 -> "山城ゑのこ"; 16 -> "天火人ちやり"; 17 -> "豫母都日狭美"; 18 -> "日白残無"
+                    else -> "未知人物 ($characterId)"
+                }
+                else -> when (characterId) {
+                    0 -> "Reimu Hakurei"; 1 -> "Marisa Kirisame"; 2 -> "Sanae Kochiya"; 3 -> "Ran Yakumo"; 4 -> "Aunn Komano"
+                    5 -> "Nazrin"; 6 -> "Seiran"; 7 -> "Rin Kaenbyou"; 8 -> "Tsukasa Kudamaki"; 9 -> "Mamizou Futatsuiwa"
+                    10 -> "Yachie Kicchou"; 11 -> "Saki Kurokoma"; 12 -> "Yuuma Toutetsu"; 13 -> "Suika Ibuki"; 14 -> "Son Biten"
+                    15 -> "Enoko Mitsugashira"; 16 -> "Chiyari Tenkajin"; 17 -> "Hisami Yomotsu"; 18 -> "Zanmu Nippaku"
+                    else -> "Unknown Chara ($characterId)"
+                }
+            }
+        }
+        "th20" -> {
+            when (lang) {
+                "zh" -> when (characterId) { 0 -> "博丽灵梦"; 1 -> "雾雨魔理沙"; else -> "未知人物 ($characterId)" }
+                "ja" -> when (characterId) { 0 -> "博麗霊夢"; 1 -> "霧雨魔理沙"; else -> "未知人物 ($characterId)" }
+                else -> when (characterId) { 0 -> "Reimu Hakurei"; 1 -> "Marisa Kirisame"; else -> "Unknown Chara ($characterId)" }
+            }
+        }
+        else -> "Character: $characterId, Subshot: $subshotId"
+    }
+}
+
+sealed class ScannerStatus {
+    object SCANNING : ScannerStatus()
+    data class PLAYING(val gameName: String) : ScannerStatus()
+}
+
+@Volatile
+var activeLang: String = "zh"
+
+@Volatile
+var activeStatus: ScannerStatus = ScannerStatus.SCANNING
+
+@Volatile
+var activeOscPort: Int = 9000
+
+@Volatile
+var activeEnableChatbox: Boolean = true
+
+@Volatile
+var activeOscSender: OSCPortOut? = null
+
+var openMenuItem: javax.swing.JMenuItem? = null
+var statusMenuItem: javax.swing.JMenuItem? = null
+var langMenu: javax.swing.JMenu? = null
+var zhItem: javax.swing.JMenuItem? = null
+var enItem: javax.swing.JMenuItem? = null
+var jaItem: javax.swing.JMenuItem? = null
+var exitItem: javax.swing.JMenuItem? = null
+var trayIcon: java.awt.TrayIcon? = null
+
+fun createTrayIconImage(): java.awt.Image {
+    val image = BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB)
+    val g = image.createGraphics()
+    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+    
+    // Draw outer circle border
+    g.color = Color.BLACK
+    g.drawOval(0, 0, 15, 15)
+    
+    // Fill left half with white, right half with red
+    g.color = Color.WHITE
+    g.fillOval(0, 0, 15, 15)
+    g.color = Color.RED
+    g.fillArc(0, 0, 15, 15, 270, 180) // sweeps counter-clockwise, from bottom to top (fills right half)
+    
+    // Draw S-curve circles
+    // Upper circle (white, diameter 7.5, centered at y = 3.75, x = 7.5) -> radius 3.75
+    g.color = Color.WHITE
+    g.fillOval(4, 0, 8, 8)
+    // Lower circle (red, diameter 7.5, centered at y = 11.25, x = 7.5) -> radius 3.75
+    g.color = Color.RED
+    g.fillOval(4, 7, 8, 8)
+    
+    // Draw smaller dots
+    // Red dot in upper white circle
+    g.color = Color.RED
+    g.fillOval(7, 3, 2, 2)
+    // White dot in lower red circle
+    g.color = Color.WHITE
+    g.fillOval(7, 10, 2, 2)
+    
+    g.dispose()
+    return image
+}
+
+fun updateTrayLabels() {
+    val statusText = when (val s = activeStatus) {
+        ScannerStatus.SCANNING -> when (activeLang) {
+            "zh" -> "状态: 正在扫描游戏..."
+            "ja" -> "ステータス: ゲームをスキャン中..."
+            else -> "Status: Scanning for games..."
+        }
+        is ScannerStatus.PLAYING -> {
+            when (activeLang) {
+                "zh" -> "状态: 正在玩 ${s.gameName}"
+                "ja" -> "ステータス: プレイ中 ${s.gameName}"
+                else -> "Status: Playing ${s.gameName}"
+            }
+        }
+    }
+    statusMenuItem?.text = statusText
+
+    openMenuItem?.text = when (activeLang) {
+        "zh" -> "打开控制面板"
+        "ja" -> "コントロールパネルを開く"
+        else -> "Open Control Panel"
+    }
+
+    langMenu?.text = when (activeLang) {
+        "zh" -> "语言选择 (Language)"
+        "ja" -> "言語選択 (Language)"
+        else -> "Language (语言选择)"
+    }
+
+    exitItem?.text = when (activeLang) {
+        "zh" -> "退出"
+        "ja" -> "終了"
+        else -> "Exit"
+    }
+
+    trayIcon?.toolTip = when (activeLang) {
+        "zh" -> "Touhou OSC Bridge - 实时游戏数据发送器"
+        "ja" -> "Touhou OSC Bridge - リアルタイムゲームデータ送信機"
+        else -> "Touhou OSC Bridge - Live Game Data Sender"
+    }
+}
+
+fun changeLanguage(lang: String) {
+    activeLang = lang
+    try {
+        val settings = Settings(lang, activeOscPort, activeEnableChatbox)
+        java.io.File("settings.json").writeText(Json.encodeToString(settings))
+    } catch (e: Exception) {
+        // Ignore
+    }
+    java.awt.EventQueue.invokeLater {
+        updateTrayLabels()
+        mainWindow?.refreshUILabels()
+    }
+}
+
+fun changeSettings(lang: String, port: Int, enableChatbox: Boolean) {
+    activeLang = lang
+    activeEnableChatbox = enableChatbox
+    
+    if (activeOscPort != port) {
+        try {
+            activeOscSender?.close()
+        } catch (e: Exception) {
+            // Ignore
+        }
+        activeOscPort = port
+        try {
+            activeOscSender = OSCPortOut(InetSocketAddress("127.0.0.1", port))
+        } catch (e: Exception) {
+            println("Error updating OSC port: ${e.message}")
+        }
+    }
+
+    try {
+        val settings = Settings(lang, port, enableChatbox)
+        java.io.File("settings.json").writeText(Json.encodeToString(settings))
+    } catch (e: Exception) {
+        println("Warning: Failed to save settings.json: ${e.message}")
+    }
+
+    java.awt.EventQueue.invokeLater {
+        mainWindow?.refreshUILabels()
+        updateTrayLabels()
+    }
+}
+
+fun styleMenuItem(item: javax.swing.JMenuItem) {
+    item.apply {
+        background = MD3Color.Surface
+        foreground = MD3Color.TextPrimary
+        font = getAppFont(Font.PLAIN, 13)
+        border = javax.swing.BorderFactory.createEmptyBorder(8, 16, 8, 16)
+        isOpaque = true
+    }
+}
+
+fun styleMenu(menu: javax.swing.JMenu) {
+    menu.apply {
+        background = MD3Color.Surface
+        foreground = MD3Color.TextPrimary
+        font = getAppFont(Font.PLAIN, 13)
+        border = javax.swing.BorderFactory.createEmptyBorder(8, 16, 8, 16)
+        isOpaque = true
+    }
+}
+
+private fun showSwingPopupMenu(e: java.awt.event.MouseEvent) {
+    java.awt.EventQueue.invokeLater {
+        val popup = javax.swing.JPopupMenu().apply {
+            background = MD3Color.Surface
+            border = javax.swing.BorderFactory.createLineBorder(MD3Color.Outline, 1)
+        }
+
+        popup.add(openMenuItem)
+        popup.add(javax.swing.JSeparator().apply {
+            foreground = MD3Color.Outline
+            background = MD3Color.Surface
+        })
+        popup.add(statusMenuItem)
+        popup.add(javax.swing.JSeparator().apply {
+            foreground = MD3Color.Outline
+            background = MD3Color.Surface
+        })
+        popup.add(langMenu)
+        popup.add(javax.swing.JSeparator().apply {
+            foreground = MD3Color.Outline
+            background = MD3Color.Surface
+        })
+        popup.add(exitItem)
+
+        val dummyDialog = javax.swing.JDialog()
+        dummyDialog.isUndecorated = true
+        dummyDialog.setSize(1, 1)
+        
+        val screenPoint = e.locationOnScreen
+        
+        val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
+        val screens = ge.screenDevices
+        var activeScreen = screens[0]
+        for (screen in screens) {
+            val bounds = screen.defaultConfiguration.bounds
+            if (bounds.contains(screenPoint)) {
+                activeScreen = screen
+                break
+            }
+        }
+        val screenBounds = activeScreen.defaultConfiguration.bounds
+        
+        val size = popup.preferredSize
+        var x = screenPoint.x
+        var y = screenPoint.y
+        
+        if (x + size.width > screenBounds.x + screenBounds.width) {
+            x = screenBounds.x + screenBounds.width - size.width
+        }
+        if (y + size.height > screenBounds.y + screenBounds.height) {
+            y = screenBounds.y + screenBounds.height - size.height
+        }
+        if (x < screenBounds.x) {
+            x = screenBounds.x
+        }
+        if (y < screenBounds.y) {
+            y = screenBounds.y
+        }
+        
+        dummyDialog.setLocation(x, y)
+        dummyDialog.isVisible = true
+        
+        popup.addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
+            override fun popupMenuWillBecomeVisible(ev: javax.swing.event.PopupMenuEvent?) {}
+            override fun popupMenuWillBecomeInvisible(ev: javax.swing.event.PopupMenuEvent?) {
+                java.awt.EventQueue.invokeLater {
+                    dummyDialog.dispose()
+                }
+            }
+            override fun popupMenuCanceled(ev: javax.swing.event.PopupMenuEvent?) {
+                java.awt.EventQueue.invokeLater {
+                    dummyDialog.dispose()
+                }
+            }
+        })
+        
+        popup.show(dummyDialog.contentPane, 0, 0)
+    }
+}
+
+fun initSystemTray() {
+    if (GraphicsEnvironment.isHeadless()) {
+        println("GraphicsEnvironment is headless. System Tray is not supported.")
+        return
+    }
+    if (!SystemTray.isSupported()) {
+        println("System Tray is not supported on this platform.")
+        return
+    }
+    
+    // Style popup menus globally via UIManager
+    javax.swing.UIManager.put("MenuItem.selectionBackground", MD3Color.SecondaryContainer)
+    javax.swing.UIManager.put("MenuItem.selectionForeground", MD3Color.OnSecondaryContainer)
+    javax.swing.UIManager.put("Menu.selectionBackground", MD3Color.SecondaryContainer)
+    javax.swing.UIManager.put("Menu.selectionForeground", MD3Color.OnSecondaryContainer)
+    javax.swing.UIManager.put("PopupMenu.background", MD3Color.Surface)
+    javax.swing.UIManager.put("PopupMenu.border", javax.swing.BorderFactory.createLineBorder(MD3Color.Outline, 1))
+    
+    val tray = SystemTray.getSystemTray()
+    
+    openMenuItem = javax.swing.JMenuItem("").apply {
+        styleMenuItem(this)
+        addActionListener {
+            java.awt.EventQueue.invokeLater {
+                mainWindow?.isVisible = true
+                mainWindow?.extendedState = Frame.NORMAL
+                mainWindow?.toFront()
+            }
+        }
+    }
+
+    statusMenuItem = javax.swing.JMenuItem("").apply {
+        styleMenuItem(this)
+        isEnabled = false
+    }
+    
+    langMenu = javax.swing.JMenu("").apply {
+        styleMenu(this)
+    }
+    
+    zhItem = javax.swing.JMenuItem("简体中文 (Chinese)").apply {
+        styleMenuItem(this)
+        addActionListener { changeLanguage("zh") }
+    }
+    enItem = javax.swing.JMenuItem("English (English)").apply {
+        styleMenuItem(this)
+        addActionListener { changeLanguage("en") }
+    }
+    jaItem = javax.swing.JMenuItem("日本語 (Japanese)").apply {
+        styleMenuItem(this)
+        addActionListener { changeLanguage("ja") }
+    }
+    langMenu?.add(zhItem)
+    langMenu?.add(enItem)
+    langMenu?.add(jaItem)
+    
+    exitItem = javax.swing.JMenuItem("").apply {
+        styleMenuItem(this)
+        addActionListener {
+            System.exit(0)
+        }
+    }
+    
+    val image = createTrayIconImage()
+    trayIcon = TrayIcon(image, "Touhou OSC Bridge").apply {
+        isImageAutoSize = true
+        addActionListener {
+            java.awt.EventQueue.invokeLater {
+                mainWindow?.isVisible = true
+                mainWindow?.extendedState = Frame.NORMAL
+                mainWindow?.toFront()
+            }
+        }
+        addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseReleased(e: java.awt.event.MouseEvent) {
+                if (e.isPopupTrigger || e.button == java.awt.event.MouseEvent.BUTTON3) {
+                    showSwingPopupMenu(e)
+                }
+            }
+            override fun mousePressed(e: java.awt.event.MouseEvent) {
+                if (e.isPopupTrigger || e.button == java.awt.event.MouseEvent.BUTTON3) {
+                    showSwingPopupMenu(e)
+                }
+            }
+        })
+    }
+    
+    try {
+        tray.add(trayIcon)
+    } catch (e: Exception) {
+        println("Error adding system tray icon: ${e.message}")
+    }
+    
+    updateTrayLabels()
 }
 
 fun main() {
+    LogManager.init()
+    selectLanguage()
 
-    // 1. Read JSON configuration file from classpath
+    activeOscSender = OSCPortOut(InetSocketAddress("127.0.0.1", activeOscPort))
+
+    initSystemTray()
+
     val configStream = object {}.javaClass.getResourceAsStream("/game_data.json")
     if (configStream == null) {
-        println("Configuration file not found: game_data.json")
+        val errJsonMsg = when (activeLang) {
+            "zh" -> "找不到配置文件：game_data.json"
+            "ja" -> "設定ファイルが見つかりません: game_data.json"
+            else -> "Configuration file not found: game_data.json"
+        }
+        println(errJsonMsg)
         return
     }
 
     val configJson = configStream.bufferedReader().use { it.readText() }
     val games = Json.decodeFromString<List<GameConfig>>(configJson)
 
-    // 2. Initialize OSC sender (VRChat default receiving port is 9000)
-    val oscSender = OSCPortOut(InetSocketAddress("127.0.0.1", 9000))
+    // Open MainWindow in Swing Event Queue
+    java.awt.EventQueue.invokeLater {
+        mainWindow = MainWindow()
+        mainWindow?.isVisible = true
+        LogManager.setTextArea(mainWindow!!.logArea)
+    }
 
     println("=== THOSC_BOX - Touhou Project OSC Bridge ===")
-    println("Supported games (${games.size}):")
+    val supportedGamesTitle = when (activeLang) {
+        "zh" -> "支持的游戏 (${games.size}):"
+        "ja" -> "対応游戏 (${games.size}):"
+        else -> "Supported games (${games.size}):"
+    }
+    println(supportedGamesTitle)
     games.forEachIndexed { index, game ->
         val steamTag = if (game.onSteam) " [Steam]" else ""
-        println("  ${index + 1}. ${game.name}$steamTag")
+        println("  ${index + 1}. ${getLocalizedGameName(game.id, activeLang)}$steamTag")
     }
     println()
-    println("Starting to monitor game processes...")
+    val monitoringMsg = when (activeLang) {
+        "zh" -> "正在开始监控游戏进程..."
+        "ja" -> "ゲームプロセスの監視を開始します..."
+        else -> "Starting to monitor game processes..."
+    }
+    println(monitoringMsg)
 
-    // 3. Main loop: locate game process and read memory
+    Thread {
+        runScannerLoop(games)
+    }.start()
+}
+
+fun runScannerLoop(games: List<GameConfig>) {
     while (true) {
         var activeGameConfig: GameConfig? = null
         var processId: Int? = null
 
-        // Iterate through configured games to see if any are running
         for (game in games) {
             val pid = getProcessIdByName(game.processName)
             if (pid != null) {
@@ -397,9 +2315,22 @@ fun main() {
         }
 
         if (activeGameConfig != null && processId != null) {
-            println("Game running detected: ${activeGameConfig.name} (PID: $processId)")
+            val gameLocalizedName = getLocalizedGameName(activeGameConfig.id, activeLang)
+            
+            // Update Tray Status & GUI Status Pill
+            activeStatus = ScannerStatus.PLAYING(gameLocalizedName)
+            java.awt.EventQueue.invokeLater {
+                updateTrayLabels()
+                mainWindow?.updateStatusPill()
+            }
 
-            // Request permissions for VM read and synchronization
+            val gameDetectedMsg = when (activeLang) {
+                "zh" -> "检测到游戏正在运行: $gameLocalizedName (PID: $processId)"
+                "ja" -> "ゲームの起動を検出しました: $gameLocalizedName (PID: $processId)"
+                else -> "Game running detected: $gameLocalizedName (PID: $processId)"
+            }
+            println(gameDetectedMsg)
+
             val processHandle = Kernel32.INSTANCE.OpenProcess(
                 WinNT.PROCESS_VM_READ or WinNT.PROCESS_QUERY_INFORMATION or WinNT.SYNCHRONIZE,
                 false,
@@ -407,21 +2338,34 @@ fun main() {
             )
 
             if (processHandle == null) {
-                println("Failed to open process handle, administrator privileges might be required. Error code: ${Kernel32.INSTANCE.GetLastError()}")
+                val failMsg = when (activeLang) {
+                    "zh" -> "无法打开进程句柄，可能需要管理员权限。错误代码: ${Kernel32.INSTANCE.GetLastError()}"
+                    "ja" -> "プロセスハンドルのオープンに失敗しました。管理者権限が必要な可能性があります。エラーコード: ${Kernel32.INSTANCE.GetLastError()}"
+                    else -> "Failed to open process handle, administrator privileges might be required. Error code: ${Kernel32.INSTANCE.GetLastError()}"
+                }
+                println(failMsg)
                 Thread.sleep(5000)
                 continue
             }
 
             try {
-                // Retrieve module base address (auto-detect, supports Steam version ASLR)
                 val moduleBase = getModuleBaseAddress(processId, processHandle, activeGameConfig.processName)
                 val baseAddr = if (moduleBase != null) {
-                    println("Module base address detected: 0x${moduleBase.toString(16).uppercase()}")
+                    val baseMsg = when (activeLang) {
+                        "zh" -> "检测到模块基址: 0x${moduleBase.toString(16).uppercase()}"
+                        "ja" -> "モジュールベースアドレスを検出しました: 0x${moduleBase.toString(16).uppercase()}"
+                        else -> "Module base address detected: 0x${moduleBase.toString(16).uppercase()}"
+                    }
+                    println(baseMsg)
                     moduleBase
                 } else {
-                    // Fallback to default base address
                     val defaultBase = hexToLong(activeGameConfig.defaultBase)
-                    println("Using default base address: 0x${defaultBase.toString(16).uppercase()}")
+                    val baseFallbackMsg = when (activeLang) {
+                        "zh" -> "使用默认基址: 0x${defaultBase.toString(16).uppercase()}"
+                        "ja" -> "デフォルトのベースアドレスを使用します: 0x${defaultBase.toString(16).uppercase()}"
+                        else -> "Using default base address: 0x${defaultBase.toString(16).uppercase()}"
+                    }
+                    println(baseFallbackMsg)
                     defaultBase
                 }
 
@@ -436,36 +2380,41 @@ fun main() {
                     println("Difficulty offset: ${activeGameConfig.difficultyOffset}")
                 }
 
-                // Send game index to VRChat for logic checking in the Animator
                 val gameIndex = games.indexOf(activeGameConfig)
 
-                var lastPrintTime = 0L
                 var lastChatboxTime = 0L
                 var lastScore = -1
                 var lastMiss = -1
                 var lastBomb = -1
                 var lastStageValue = -1
-                var lastSpellId = -2
+                var lastCharacter = -1
+                var lastSubshot = -1
 
-                // Session variables for incremental delta-tracking
                 var lastRawLives: Int? = null
                 var lastRawBombs: Int? = null
                 var cumulativeMisses = 0
                 var cumulativeBombs = 0
 
-                // Continuously read and send while the game is running
                 while (true) {
-                    // Wait for 100 milliseconds using WaitForSingleObject. If it returns 258 (WAIT_TIMEOUT), the process is still running.
                     val waitResult = Kernel32.INSTANCE.WaitForSingleObject(processHandle, 100)
-                    if (waitResult == 0) { // WAIT_OBJECT_0: Process has exited
-                        println("\nGame process has exited.")
+                    if (waitResult == 0) {
+                        val exitMsg = when (activeLang) {
+                            "zh" -> "\n游戏进程已退出。"
+                            "ja" -> "\nゲームプロセスが終了しました。"
+                            else -> "\nGame process has exited."
+                        }
+                        println(exitMsg)
                         break
-                    } else if (waitResult != 258) { // Non WAIT_TIMEOUT
-                        println("\nWaitForSingleObject failed or returned abnormal value: $waitResult, error code: ${Kernel32.INSTANCE.GetLastError()}")
+                    } else if (waitResult != 258) {
+                        val abnormalMsg = when (activeLang) {
+                            "zh" -> "\nWaitForSingleObject 失败或返回异常值: $waitResult, 错误代码: ${Kernel32.INSTANCE.GetLastError()}"
+                            "ja" -> "\nWaitForSingleObject が失敗したか、異常値を返しました: $waitResult, エラーコード: ${Kernel32.INSTANCE.GetLastError()}"
+                            else -> "\nWaitForSingleObject failed or returned abnormal value: $waitResult, error code: ${Kernel32.INSTANCE.GetLastError()}"
+                        }
+                        println(abnormalMsg)
                         break
                     }
 
-                    // Dynamically resolve physical memory addresses
                     val scoreAddr = resolveAddressPath(processHandle, baseAddr, activeGameConfig.scoreOffset, "Score")
                     val missAddr = resolveAddressPath(processHandle, baseAddr, activeGameConfig.missOffset, "Miss")
                     val bombAddr = if (activeGameConfig.bombType.lowercase() != "none" && activeGameConfig.bombOffset.isNotEmpty()) {
@@ -480,6 +2429,38 @@ fun main() {
                     }
                     val difficultyAddr = if (activeGameConfig.difficultyOffset.isNotEmpty()) {
                         resolveAddressPath(processHandle, baseAddr, activeGameConfig.difficultyOffset, "Difficulty")
+                    } else {
+                        0L
+                    }
+                    val characterAddr = if (activeGameConfig.characterOffset.isNotEmpty()) {
+                        resolveAddressPath(processHandle, baseAddr, activeGameConfig.characterOffset, "Character")
+                    } else {
+                        0L
+                    }
+                    val subshotAddr = if (activeGameConfig.subshotOffset.isNotEmpty()) {
+                        resolveAddressPath(processHandle, baseAddr, activeGameConfig.subshotOffset, "Subshot")
+                    } else {
+                        0L
+                    }
+                    
+                    // Resolve extended memory addresses
+                    val grazeAddr = if (activeGameConfig.grazeOffset.isNotEmpty()) {
+                        resolveAddressPath(processHandle, baseAddr, activeGameConfig.grazeOffset, "Graze")
+                    } else {
+                        0L
+                    }
+                    val powerAddr = if (activeGameConfig.powerOffset.isNotEmpty()) {
+                        resolveAddressPath(processHandle, baseAddr, activeGameConfig.powerOffset, "Power")
+                    } else {
+                        0L
+                    }
+                    val pointAddr = if (activeGameConfig.pointOffset.isNotEmpty()) {
+                        resolveAddressPath(processHandle, baseAddr, activeGameConfig.pointOffset, "Point")
+                    } else {
+                        0L
+                    }
+                    val cherryMaxAddr = if (activeGameConfig.cherryMaxOffset.isNotEmpty()) {
+                        resolveAddressPath(processHandle, baseAddr, activeGameConfig.cherryMaxOffset, "CherryMax")
                     } else {
                         0L
                     }
@@ -512,6 +2493,41 @@ fun main() {
                         -1
                     }
 
+                    val rawCharacter = if (characterAddr != 0L) {
+                        readMemoryValue(processHandle, characterAddr, activeGameConfig.characterType, "Character").toInt()
+                    } else {
+                        0
+                    }
+                    val rawSubshot = if (subshotAddr != 0L) {
+                        readMemoryValue(processHandle, subshotAddr, activeGameConfig.subshotType, "Subshot").toInt()
+                    } else {
+                        0
+                    }
+                    
+                    // Read extended variables
+                    val rawGraze = if (grazeAddr != 0L) {
+                        readMemoryValue(processHandle, grazeAddr, activeGameConfig.grazeType, "Graze").toInt()
+                    } else {
+                        0
+                    }
+                    val rawPower = if (powerAddr != 0L) {
+                        readMemoryValue(processHandle, powerAddr, activeGameConfig.powerType, "Power")
+                    } else {
+                        0.0f
+                    }
+                    val rawPoint = if (pointAddr != 0L) {
+                        readMemoryValue(processHandle, pointAddr, activeGameConfig.pointType, "Point").toLong()
+                    } else {
+                        0L
+                    }
+                    val rawCherryMax = if (cherryMaxAddr != 0L) {
+                        readMemoryValue(processHandle, cherryMaxAddr, activeGameConfig.cherryMaxType, "CherryMax").toInt()
+                    } else {
+                        0
+                    }
+
+                    val characterName = getCharaAndShottypeName(activeGameConfig.id, rawCharacter, rawSubshot, activeLang)
+
                     val stageIndex = rawStage - activeGameConfig.stageStartsFrom
                     val stageStr = if (stageIndex >= 0) {
                         when (stageIndex) {
@@ -525,7 +2541,6 @@ fun main() {
                     }
                     val oscStageValue = if (stageIndex in 0..7) stageIndex + 1 else 0
 
-                    // If score resets (e.g., starting a new game or restarting), clear cumulative values and reinitialize bases
                     if (lastScore != -1 && score < lastScore) {
                         cumulativeMisses = 0
                         cumulativeBombs = 0
@@ -533,7 +2548,6 @@ fun main() {
                         lastRawBombs = null
                     }
 
-                    // Calculate Misses incrementally (death count)
                     if (missAddr == 0L) {
                         lastRawLives = null
                     } else {
@@ -542,7 +2556,6 @@ fun main() {
                         } else {
                             if (rawLives < lastRawLives) {
                                 val diff = lastRawLives - rawLives
-                                // Restrict change to a reasonable range to prevent abnormal spikes during loading/uninitialization
                                 if (diff in 1..8) {
                                     cumulativeMisses += diff
                                 }
@@ -551,7 +2564,6 @@ fun main() {
                         }
                     }
 
-                    // Calculate Bombs incrementally (bomb usage count)
                     if (bombAddr == 0L) {
                         lastRawBombs = null
                     } else {
@@ -561,15 +2573,11 @@ fun main() {
                             if (rawBombs < lastRawBombs) {
                                 val diff = lastRawBombs - rawBombs
                                 if (activeGameConfig.id == "th10" || activeGameConfig.id == "th11") {
-                                    // Special mechanic optimization (TH10/TH11): uses P (Power) to release Bombs
-                                    // Only count as bomb used when life count has not decreased (excludes power drop due to death)
-                                    // Each bomb release consumes 20 points of Power (i.e. 1.00 Power)
                                     val playerDied = missAddr != 0L && rawLives < (lastRawLives ?: rawLives)
                                     if (!playerDied && diff in 15..25) {
                                         cumulativeBombs += 1
                                     }
                                 } else {
-                                    // Normal games: directly detect decrease in remaining bomb count
                                     if (diff in 1..8) {
                                         cumulativeBombs += diff
                                     }
@@ -579,70 +2587,145 @@ fun main() {
                         }
                     }
 
-                    // Construct and send OSC messages
+                    // Normalize Power and Point/PIV values
+                    val (powerFloat, powerRawInt) = when (activeGameConfig.id) {
+                        "th06", "th07", "th08" -> {
+                            val p = rawPower.toFloat()
+                            Pair(p, p.toInt())
+                        }
+                        "th10", "th11" -> {
+                            val p = rawPower.toFloat() / 20.0f
+                            Pair(p, rawPower.toInt())
+                        }
+                        "th12", "th13", "th14", "th15", "th16", "th17", "th18", "th20" -> {
+                            val p = rawPower.toFloat() / 100.0f
+                            Pair(p, rawPower.toInt())
+                        }
+                        else -> Pair(rawPower.toFloat(), rawPower.toInt())
+                    }
+
+                    val pointValue = when (activeGameConfig.id) {
+                        "th13", "th14", "th15", "th16", "th17" -> {
+                            (rawPoint / 100).toInt()
+                        }
+                        else -> rawPoint.toInt()
+                    }
+
                     val difficultyStr = if (rawDifficulty in 0..10) {
-                        getDifficultyName(activeGameConfig.id, rawDifficulty)
+                        getDifficultyName(activeGameConfig.id, rawDifficulty, activeLang)
                     } else {
                         null
                     }
                     val gameNameWithDiff = if (difficultyStr != null) {
-                        "${activeGameConfig.name} [$difficultyStr]"
+                        "${getLocalizedGameName(activeGameConfig.id, activeLang)} [$difficultyStr]"
                     } else {
-                        activeGameConfig.name
+                        getLocalizedGameName(activeGameConfig.id, activeLang)
                     }
 
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouGameID", listOf(gameIndex)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouGameName", listOf(activeGameConfig.name)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouScore", listOf(score)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouMiss", listOf(cumulativeMisses)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouBomb", listOf(cumulativeBombs)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouDifficulty", listOf(rawDifficulty)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouDifficultyName", listOf(difficultyStr ?: "")))
+                    try {
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouGameID", listOf(gameIndex)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouGameName", listOf(getLocalizedGameName(activeGameConfig.id, activeLang))))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouScore", listOf(score)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouMiss", listOf(cumulativeMisses)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouBomb", listOf(cumulativeBombs)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouDifficulty", listOf(rawDifficulty)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouDifficultyName", listOf(difficultyStr ?: "")))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouCharacter", listOf(rawCharacter)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouSubshot", listOf(rawSubshot)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouCharacterName", listOf(characterName)))
+                        
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouGraze", listOf(rawGraze)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouPower", listOf(powerFloat)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouPowerRaw", listOf(powerRawInt)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouPoint", listOf(pointValue)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouCherryMax", listOf(rawCherryMax)))
+                    } catch (e: Exception) {
+                        // Ignore
+                    }
 
-                    // Read active spell card ID
                     val activeSpellId = readActiveSpellId(processHandle, baseAddr, activeGameConfig)
-                    // spellId is valid if it is not null and not equal to -1 (inactive value in ZUN games)
                     val spellActive = activeSpellId != null && activeSpellId != -1
-                    val spellStr = if (spellActive) getSpellName(activeGameConfig.id, activeSpellId!!) else null
+                    val spellStr = if (spellActive) getSpellName(activeGameConfig.id, activeSpellId!!, activeLang) else null
 
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouStage", listOf(oscStageValue)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouSpellID", listOf(activeSpellId ?: -1)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouSpellActive", listOf(spellActive)))
-                    oscSender.send(OSCMessage("/avatar/parameters/TouhouSpellName", listOf(spellStr ?: "")))
-
-                    val stageAndSpellStr = if (spellActive && spellStr != null) {
-                        "$stageStr | Spell: $spellStr"
-                    } else {
-                        stageStr
+                    try {
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouStage", listOf(oscStageValue)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouSpellID", listOf(activeSpellId ?: -1)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouSpellActive", listOf(spellActive)))
+                        activeOscSender?.send(OSCMessage("/avatar/parameters/TouhouSpellName", listOf(spellStr ?: "")))
+                    } catch (e: Exception) {
+                        // Ignore
                     }
 
-                    // Real-time console output (prevent frequent flashing, updates on change or every 500ms)
+                    // Update GUI live stats
+                    updateLiveStats(
+                        gameName = gameNameWithDiff,
+                        characterName = characterName,
+                        stage = stageStr,
+                        score = score,
+                        miss = cumulativeMisses,
+                        bomb = cumulativeBombs,
+                        graze = rawGraze,
+                        power = powerFloat,
+                        point = pointValue,
+                        cherry = rawCherryMax,
+                        spellName = spellStr
+                    )
+
                     val now = System.currentTimeMillis()
-                    if (now - lastPrintTime >= 500 || score != lastScore || cumulativeMisses != lastMiss || cumulativeBombs != lastBomb || rawStage != lastStageValue || (activeSpellId ?: -1) != lastSpellId) {
-                        print("\r[Live Data] Game: $gameNameWithDiff | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs        ")
+                    if (score != lastScore || cumulativeMisses != lastMiss || cumulativeBombs != lastBomb || rawStage != lastStageValue || rawCharacter != lastCharacter || rawSubshot != lastSubshot) {
+                        val consoleText = when (activeLang) {
+                            "zh" -> "\r[实时数据] 正在玩: $gameNameWithDiff | 机体: $characterName | 关卡: $stageStr | 分数: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs                                "
+                            "ja" -> "\r[リアルタイムデータ] プレイ中: $gameNameWithDiff | 自機: $characterName | ステージ: $stageStr | スコア: $score | 被弾: $cumulativeMisses | ボム: $cumulativeBombs                                "
+                            else -> "\r[Live Data] Playing: $gameNameWithDiff | Chara: $characterName | Stage: $stageStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs                                "
+                        }
+                        print(consoleText)
                         System.out.flush()
-                        lastPrintTime = now
                         lastScore = score
                         lastMiss = cumulativeMisses
                         lastBomb = cumulativeBombs
                         lastStageValue = rawStage
-                        lastSpellId = activeSpellId ?: -1
+                        lastCharacter = rawCharacter
+                        lastSubshot = rawSubshot
                     }
 
-                    // Send status message to VRChat Chatbox every 2 seconds (2000ms)
                     if (now - lastChatboxTime >= 2000) {
-                        val chatboxText = "Game: $gameNameWithDiff | Stage/Spell: $stageAndSpellStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
-                        oscSender.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
+                        if (activeEnableChatbox) {
+                            val chatboxText = when (activeLang) {
+                                "zh" -> "正在玩: $gameNameWithDiff | 机体: $characterName | 关卡: $stageStr | 分数: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
+                                "ja" -> "プレイ中: $gameNameWithDiff | 自機: $characterName | ステージ: $stageStr | スコア: $score | 被弾: $cumulativeMisses | ボム: $cumulativeBombs"
+                                else -> "Playing: $gameNameWithDiff | Chara: $characterName | Stage: $stageStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
+                            }
+                            try {
+                                activeOscSender?.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
+                            } catch (e: Exception) {
+                                // Ignore
+                            }
+                        }
                         lastChatboxTime = now
                     }
                 }
             } catch (e: Exception) {
-                println("\nError occurred while reading memory: ${e.message}")
+                val errorMsg = when (activeLang) {
+                    "zh" -> "\n读取内存时发生错误: ${e.message}"
+                    "ja" -> "\nメモリ読み込み中にエラーが発生しました: ${e.message}"
+                    else -> "\nError occurred while reading memory: ${e.message}"
+                }
+                println(errorMsg)
             } finally {
                 Kernel32.INSTANCE.CloseHandle(processHandle)
+                
+                // Reset Status to Scanning
+                activeStatus = ScannerStatus.SCANNING
+                java.awt.EventQueue.invokeLater {
+                    updateTrayLabels()
+                    mainWindow?.updateStatusPill()
+                    mainWindow?.updateScanningStatus()
+                }
             }
         } else {
-            // No game process found, wait for 2 seconds and retry
+            java.awt.EventQueue.invokeLater {
+                mainWindow?.updateScanningStatus()
+            }
             Thread.sleep(2000)
         }
     }
