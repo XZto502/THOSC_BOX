@@ -879,7 +879,7 @@ class MainWindow : javax.swing.JFrame() {
 
     init {
         title = "THOSC_BOX"
-        defaultCloseOperation = javax.swing.JFrame.DO_NOTHING_ON_CLOSE
+        defaultCloseOperation = javax.swing.JFrame.EXIT_ON_CLOSE
         setSize(850, 600)
         setLocationRelativeTo(null)
         background = MD3Color.Background
@@ -888,11 +888,7 @@ class MainWindow : javax.swing.JFrame() {
 
         addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosing(e: java.awt.event.WindowEvent?) {
-                if (SystemTray.isSupported()) {
-                    isVisible = false
-                } else {
-                    System.exit(0)
-                }
+                System.exit(0)
             }
         })
 
