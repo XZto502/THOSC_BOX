@@ -30,7 +30,16 @@ import com.sun.jna.win32.StdCallLibrary
 import com.sun.jna.win32.W32APIOptions
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.encodeToString
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.net.URI
+import java.time.Duration
 import java.net.InetSocketAddress
 import java.awt.*
 import java.awt.image.BufferedImage
@@ -292,7 +301,8 @@ data class GameConfig(
 data class Settings(
     val language: String,
     val oscPort: Int = 9000,
-    val enableChatbox: Boolean = true
+    val enableChatbox: Boolean = true,
+    val appMode: String = "touhou"
 )
 
 
@@ -306,6 +316,7 @@ fun selectLanguage(): String {
                 activeLang = settings.language
                 activeOscPort = settings.oscPort
                 activeEnableChatbox = settings.enableChatbox
+                activeMode = settings.appMode
                 return settings.language
             }
         } catch (e: Exception) {
@@ -491,10 +502,22 @@ open class MD3Card(val radius: Int = 16) : javax.swing.JPanel() {
 
 class MD3Button(
     text: String,
-    val type: ButtonType = ButtonType.FILLED,
+    initialType: ButtonType = ButtonType.FILLED,
     val radius: Int = 16
 ) : javax.swing.JButton(text) {
     enum class ButtonType { FILLED, OUTLINED, TEXT }
+    
+    var type: ButtonType = initialType
+        set(value) {
+            field = value
+            foreground = when (value) {
+                ButtonType.FILLED -> MD3Color.OnPrimary
+                ButtonType.OUTLINED -> MD3Color.Primary
+                ButtonType.TEXT -> MD3Color.Primary
+            }
+            repaint()
+        }
+
     private var isHovered = false
     private var isPressed = false
 
@@ -820,6 +843,9 @@ class MainWindow : javax.swing.JFrame() {
     val btnSettings = MD3TabButton("Settings", false)
     val btnLogs = MD3TabButton("Logs", false)
 
+    val btnTouhouMode = MD3Button("Touhou / 东方", if (activeMode == "touhou") MD3Button.ButtonType.FILLED else MD3Button.ButtonType.OUTLINED, radius = 20)
+    val btnOsuMode = MD3Button("osu!", if (activeMode == "osu") MD3Button.ButtonType.FILLED else MD3Button.ButtonType.OUTLINED, radius = 20)
+
     val gameCard = StatCard("Active Game", "Scanning...")
     val charaCard = StatCard("Character", "N/A")
     val stageCard = StatCard("Stage", "N/A")
@@ -891,7 +917,33 @@ class MainWindow : javax.swing.JFrame() {
         titleTextPanel.add(mainTitleLabel)
         titleTextPanel.add(subTitleLabel)
         headerPanel.add(titleTextPanel, BorderLayout.WEST)
+
+        val modePanel = javax.swing.JPanel(java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 8, 0)).apply {
+            background = MD3Color.Background
+            isOpaque = false
+            add(btnTouhouMode)
+            add(btnOsuMode)
+        }
+        headerPanel.add(modePanel, BorderLayout.EAST)
+
         rootPanel.add(headerPanel, BorderLayout.NORTH)
+
+        btnTouhouMode.addActionListener {
+            if (activeMode != "touhou") {
+                btnTouhouMode.type = MD3Button.ButtonType.FILLED
+                btnOsuMode.type = MD3Button.ButtonType.OUTLINED
+                changeMode("touhou")
+            }
+        }
+        btnOsuMode.addActionListener {
+            if (activeMode != "osu") {
+                btnTouhouMode.type = MD3Button.ButtonType.OUTLINED
+                btnOsuMode.type = MD3Button.ButtonType.FILLED
+                changeMode("osu")
+            }
+        }
+
+        updateCardLabels()
 
         val bodyPanel = javax.swing.JPanel(BorderLayout()).apply {
             background = MD3Color.Background
@@ -1118,20 +1170,43 @@ class MainWindow : javax.swing.JFrame() {
 
 
 
+    fun updateCardLabels() {
+        if (activeMode == "osu") {
+            gameCard.updateLabel(when (activeLang) { "zh" -> "活动游戏"; "ja" -> "アクティブゲーム"; else -> "Active Game" })
+            charaCard.updateLabel(when (activeLang) { "zh" -> "歌名"; "ja" -> "曲名"; else -> "Song Title" })
+            stageCard.updateLabel(when (activeLang) { "zh" -> "难度"; "ja" -> "難易度"; else -> "Difficulty" })
+            scoreCard.updateLabel(when (activeLang) { "zh" -> "得分"; "ja" -> "スコア"; else -> "Score" })
+            livesCard.updateLabel(when (activeLang) { "zh" -> "Miss数"; "ja" -> "ミス数"; else -> "Misses" })
+            bombsCard.updateLabel(when (activeLang) { "zh" -> "当前连击"; "ja" -> "コンボ"; else -> "Combo" })
+            powerCard.updateLabel(when (activeLang) { "zh" -> "最大连击"; "ja" -> "最大コンボ"; else -> "Max Combo" })
+            grazeCard.updateLabel(when (activeLang) { "zh" -> "准确率"; "ja" -> "精度"; else -> "Accuracy" })
+            pointCard.updateLabel(when (activeLang) { "zh" -> "评级"; "ja" -> "ランク"; else -> "Grade" })
+        } else {
+            gameCard.updateLabel(getLocalizedString("stat_game", activeLang))
+            charaCard.updateLabel(getLocalizedString("stat_chara", activeLang))
+            stageCard.updateLabel(getLocalizedString("stat_stage", activeLang))
+            scoreCard.updateLabel(getLocalizedString("stat_score", activeLang))
+            livesCard.updateLabel(getLocalizedString("stat_lives", activeLang))
+            bombsCard.updateLabel(getLocalizedString("stat_bombs", activeLang))
+            grazeCard.updateLabel(getLocalizedString("stat_graze", activeLang))
+            powerCard.updateLabel(getLocalizedString("stat_power", activeLang))
+            pointCard.updateLabel(getLocalizedString("stat_point", activeLang))
+        }
+    }
+
     fun refreshUILabels() {
         btnDashboard.text = getLocalizedString("tab_dashboard", activeLang)
         btnSettings.text = getLocalizedString("tab_settings", activeLang)
         btnLogs.text = getLocalizedString("tab_logs", activeLang)
 
-        gameCard.updateLabel(getLocalizedString("stat_game", activeLang))
-        charaCard.updateLabel(getLocalizedString("stat_chara", activeLang))
-        stageCard.updateLabel(getLocalizedString("stat_stage", activeLang))
-        scoreCard.updateLabel(getLocalizedString("stat_score", activeLang))
-        livesCard.updateLabel(getLocalizedString("stat_lives", activeLang))
-        bombsCard.updateLabel(getLocalizedString("stat_bombs", activeLang))
-        grazeCard.updateLabel(getLocalizedString("stat_graze", activeLang))
-        powerCard.updateLabel(getLocalizedString("stat_power", activeLang))
-        pointCard.updateLabel(getLocalizedString("stat_point", activeLang))
+        updateCardLabels()
+
+        btnTouhouMode.text = when (activeLang) {
+            "zh" -> "东方 / Touhou"
+            "ja" -> "東方 / Touhou"
+            else -> "Touhou"
+        }
+        btnOsuMode.text = "osu!"
 
         langLabel.text = getLocalizedString("settings_lang", activeLang)
         portLabel.text = getLocalizedString("settings_port", activeLang)
@@ -1866,6 +1941,9 @@ var activeOscPort: Int = 9000
 var activeEnableChatbox: Boolean = true
 
 @Volatile
+var activeMode: String = "touhou"
+
+@Volatile
 var activeOscSender: OSCPortOut? = null
 
 var openMenuItem: javax.swing.JMenuItem? = null
@@ -1957,7 +2035,7 @@ fun updateTrayLabels() {
 fun changeLanguage(lang: String) {
     activeLang = lang
     try {
-        val settings = Settings(lang, activeOscPort, activeEnableChatbox)
+        val settings = Settings(lang, activeOscPort, activeEnableChatbox, activeMode)
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         // Ignore
@@ -1987,13 +2065,28 @@ fun changeSettings(lang: String, port: Int, enableChatbox: Boolean) {
     }
 
     try {
-        val settings = Settings(lang, port, enableChatbox)
+        val settings = Settings(lang, port, enableChatbox, activeMode)
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         println("Warning: Failed to save settings.json: ${e.message}")
     }
 
     java.awt.EventQueue.invokeLater {
+        mainWindow?.refreshUILabels()
+        updateTrayLabels()
+    }
+}
+
+fun changeMode(mode: String) {
+    activeMode = mode
+    try {
+        val settings = Settings(activeLang, activeOscPort, activeEnableChatbox, mode)
+        java.io.File("settings.json").writeText(Json.encodeToString(settings))
+    } catch (e: Exception) {
+        println("Warning: Failed to save settings.json: ${e.message}")
+    }
+    java.awt.EventQueue.invokeLater {
+        mainWindow?.updateCardLabels()
         mainWindow?.refreshUILabels()
         updateTrayLabels()
     }
@@ -2246,10 +2339,18 @@ fun main() {
     Thread {
         runScannerLoop(games)
     }.start()
+
+    Thread {
+        runOsuScannerLoop()
+    }.start()
 }
 
 fun runScannerLoop(games: List<GameConfig>) {
     while (true) {
+        if (activeMode != "touhou") {
+            Thread.sleep(1000)
+            continue
+        }
         var activeGameConfig: GameConfig? = null
         var processId: Int? = null
 
@@ -2673,4 +2774,170 @@ fun runScannerLoop(games: List<GameConfig>) {
             Thread.sleep(2000)
         }
     }
+}
+
+fun runOsuScannerLoop() {
+    val client = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(2))
+        .build()
+
+    var lastOsuState = -1
+    var lastOsuMiss = -1
+    var lastChatboxTime = 0L
+
+    while (true) {
+        if (activeMode != "osu") {
+            Thread.sleep(1000)
+            continue
+        }
+
+        try {
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:24050/json"))
+                .timeout(Duration.ofSeconds(2))
+                .GET()
+                .build()
+
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() == 200) {
+                val jsonText = response.body()
+                val root = Json.parseToJsonElement(jsonText).jsonObject
+                
+                val menu = root["menu"]?.jsonObject
+                val state = menu?.get("state")?.jsonPrimitive?.intOrNull ?: 0
+                
+                val bm = menu?.get("bm")?.jsonObject
+                val metadata = bm?.get("metadata")?.jsonObject
+                val artist = metadata?.get("artist")?.jsonPrimitive?.content ?: ""
+                val title = metadata?.get("title")?.jsonPrimitive?.content ?: ""
+                val difficulty = metadata?.get("difficulty")?.jsonPrimitive?.content ?: ""
+
+                val stats = bm?.get("stats")?.jsonObject
+                val stars = stats?.get("SR")?.jsonPrimitive?.floatOrNull ?: 0f
+                
+                val bpmObj = stats?.get("BPM")?.jsonObject
+                val bpmMin = bpmObj?.get("min")?.jsonPrimitive?.floatOrNull ?: 0f
+                val bpmMax = bpmObj?.get("max")?.jsonPrimitive?.floatOrNull ?: 0f
+                val bpm = maxOf(bpmMin, bpmMax)
+
+                val gameplay = root["gameplay"]?.jsonObject
+                val score = gameplay?.get("score")?.jsonPrimitive?.intOrNull ?: 0
+                val accuracy = gameplay?.get("accuracy")?.jsonPrimitive?.floatOrNull ?: 0f
+                
+                val combo = gameplay?.get("combo")?.jsonObject
+                val currentCombo = combo?.get("current")?.jsonPrimitive?.intOrNull ?: 0
+                val maxCombo = combo?.get("max")?.jsonPrimitive?.intOrNull ?: 0
+
+                val hits = gameplay?.get("hits")?.jsonObject
+                val miss = hits?.get("0")?.jsonPrimitive?.intOrNull ?: 0
+                val gradeObj = hits?.get("grade")?.jsonObject
+                val grade = gradeObj?.get("current")?.jsonPrimitive?.content ?: ""
+
+                val hp = gameplay?.get("hp")?.jsonObject
+                val hpNormal = hp?.get("normal")?.jsonPrimitive?.floatOrNull ?: 0f
+
+                val stateText = when (state) {
+                    2 -> "Menu"
+                    4 -> "Playing"
+                    else -> "Idle"
+                }
+                activeStatus = ScannerStatus.PLAYING("osu! ($stateText)")
+                java.awt.EventQueue.invokeLater {
+                    updateTrayLabels()
+                }
+
+                java.awt.EventQueue.invokeLater {
+                    mainWindow?.apply {
+                        gameCard.updateValue("osu! ($stateText)")
+                        charaCard.updateValue(if (title.isNotEmpty()) "$artist - $title" else "N/A")
+                        stageCard.updateValue(if (difficulty.isNotEmpty()) "$difficulty (${String.format(java.util.Locale.US, "%.2f", stars)}*)" else "N/A")
+                        
+                        if (state == 4) {
+                            scoreCard.updateValue(score.toString())
+                            livesCard.updateValue(miss.toString())
+                            bombsCard.updateValue(currentCombo.toString())
+                            powerCard.updateValue(maxCombo.toString())
+                            grazeCard.updateValue(String.format(java.util.Locale.US, "%.2f%%", accuracy))
+                            pointCard.updateValue(grade.ifEmpty { "N/A" })
+                        } else {
+                            scoreCard.updateValue("0")
+                            livesCard.updateValue("0")
+                            bombsCard.updateValue("0")
+                            powerCard.updateValue("0")
+                            grazeCard.updateValue("0.00%")
+                            pointCard.updateValue("N/A")
+                        }
+                    }
+                }
+
+                try {
+                    activeOscSender?.apply {
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuStatus", listOf(state)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuScore", listOf(if (state == 4) score else 0)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuCombo", listOf(if (state == 4) currentCombo else 0)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuMaxCombo", listOf(if (state == 4) maxCombo else 0)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuAccuracy", listOf(if (state == 4) (accuracy / 100f) else 0f)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuMiss", listOf(if (state == 4) miss else 0)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuGrade", listOf(if (state == 4) grade else "")))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuBPM", listOf(bpm)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuStars", listOf(stars)))
+                        
+                        val oscHp = if (hpNormal > 1f) hpNormal / 200f else hpNormal
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuHP", listOf(if (state == 4) oscHp else 0f)))
+                    }
+                } catch (e: Exception) {
+                    // Ignore
+                }
+
+                if (activeEnableChatbox && state == 4) {
+                    val now = System.currentTimeMillis()
+                    if (state != lastOsuState || miss != lastOsuMiss || (now - lastChatboxTime > 8000)) {
+                        val chatboxText = when (activeLang) {
+                            "zh" -> "[osu!] 正在玩: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) | Combo: ${currentCombo}x | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
+                            "ja" -> "[osu!] プレイ中: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) | Combo: ${currentCombo}x | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
+                            else -> "[osu!] Playing: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) | Combo: ${currentCombo}x | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
+                        }
+                        try {
+                            activeOscSender?.send(com.illposed.osc.OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
+                        } catch (e: Exception) {
+                            // Ignore
+                        }
+                        lastChatboxTime = now
+                        lastOsuState = state
+                        lastOsuMiss = miss
+                    }
+                }
+            } else {
+                handleOsuOffline()
+            }
+        } catch (e: Exception) {
+            handleOsuOffline()
+        }
+
+        Thread.sleep(300)
+    }
+}
+
+private fun handleOsuOffline() {
+    activeStatus = ScannerStatus.SCANNING
+    java.awt.EventQueue.invokeLater {
+        updateTrayLabels()
+        mainWindow?.apply {
+            val statusText = when (activeLang) {
+                "zh" -> "osu! (gosumemory 未运行)"
+                "ja" -> "osu! (gosumemory 未起動)"
+                else -> "osu! (gosumemory not running)"
+            }
+            gameCard.updateValue(statusText)
+            charaCard.updateValue("N/A")
+            stageCard.updateValue("N/A")
+            scoreCard.updateValue("0")
+            livesCard.updateValue("0")
+            bombsCard.updateValue("0")
+            powerCard.updateValue("0")
+            grazeCard.updateValue("0.00%")
+            pointCard.updateValue("N/A")
+        }
+    }
+    Thread.sleep(2000)
 }
