@@ -798,9 +798,7 @@ fun updateLiveStats(
     bomb: Int,
     graze: Int,
     power: Float,
-    point: Int,
-    cherry: Int,
-    spellName: String?
+    point: Int
 ) {
     java.awt.EventQueue.invokeLater {
         mainWindow?.apply {
@@ -813,8 +811,6 @@ fun updateLiveStats(
             grazeCard.updateValue(graze.toString())
             powerCard.updateValue(String.format(java.util.Locale.US, "%.2f", power))
             pointCard.updateValue(point.toString())
-            cherryCard.updateValue(if (cherry > 0) cherry.toString() else "N/A")
-            spellCard.updateValue(spellName ?: "N/A")
         }
     }
 }
@@ -833,8 +829,6 @@ class MainWindow : javax.swing.JFrame() {
     val grazeCard = StatCard("Graze", "0")
     val powerCard = StatCard("Power", "0.00")
     val pointCard = StatCard("Point/PIV", "0")
-    val cherryCard = StatCard("Cherry Max", "N/A")
-    val spellCard = StatCard("Spell Card", "N/A")
 
     val langLabel = javax.swing.JLabel()
     val langComboBox = javax.swing.JComboBox(arrayOf("简体中文", "English", "日本語"))
@@ -966,21 +960,19 @@ class MainWindow : javax.swing.JFrame() {
         dashboardPanel.add(topCardsPanel)
         dashboardPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 12)))
 
-        val statsGridPanel = javax.swing.JPanel(GridLayout(3, 3, 12, 12)).apply {
+        val statsGridPanel = javax.swing.JPanel(GridLayout(0, 3, 12, 12)).apply {
             background = MD3Color.Background
             isOpaque = false
         }
         statsGridPanel.add(stageCard)
         statsGridPanel.add(scoreCard)
-        statsGridPanel.add(spellCard)
-        
         statsGridPanel.add(livesCard)
+        
         statsGridPanel.add(bombsCard)
         statsGridPanel.add(powerCard)
-        
         statsGridPanel.add(grazeCard)
+        
         statsGridPanel.add(pointCard)
-        statsGridPanel.add(cherryCard)
 
         dashboardPanel.add(statsGridPanel)
         contentPanel.add(dashboardPanel, "dashboard")
@@ -1140,8 +1132,6 @@ class MainWindow : javax.swing.JFrame() {
         grazeCard.updateLabel(getLocalizedString("stat_graze", activeLang))
         powerCard.updateLabel(getLocalizedString("stat_power", activeLang))
         pointCard.updateLabel(getLocalizedString("stat_point", activeLang))
-        cherryCard.updateLabel(getLocalizedString("stat_cherry", activeLang))
-        spellCard.updateLabel(getLocalizedString("stat_spell", activeLang))
 
         langLabel.text = getLocalizedString("settings_lang", activeLang)
         portLabel.text = getLocalizedString("settings_port", activeLang)
@@ -1164,8 +1154,6 @@ class MainWindow : javax.swing.JFrame() {
         grazeCard.updateValue("0")
         powerCard.updateValue("0.00")
         pointCard.updateValue("0")
-        cherryCard.updateValue("N/A")
-        spellCard.updateValue("N/A")
     }
 }
 
@@ -2625,9 +2613,7 @@ fun runScannerLoop(games: List<GameConfig>) {
                         bomb = cumulativeBombs,
                         graze = rawGraze,
                         power = powerFloat,
-                        point = pointValue,
-                        cherry = rawCherryMax,
-                        spellName = spellStr
+                        point = pointValue
                     )
 
                     val now = System.currentTimeMillis()
