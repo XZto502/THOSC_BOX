@@ -125,8 +125,16 @@ object LogManager {
     private var logArea: javax.swing.JTextArea? = null
     private val originalOut = System.out
     private val originalErr = System.err
+    private var logFile: java.io.File? = null
 
     fun init() {
+        try {
+            logFile = java.io.File("osc_box.log")
+            logFile?.writeText("")
+        } catch (e: Exception) {
+            // Ignore
+        }
+
         val redirectOut = object : java.io.OutputStream() {
             private val lineBuffer = java.io.ByteArrayOutputStream()
             override fun write(b: Int) {
@@ -196,6 +204,11 @@ object LogManager {
     }
 
     private fun appendLog(s: String) {
+        try {
+            logFile?.appendText(s)
+        } catch (e: Exception) {
+            // Ignore
+        }
         synchronized(logBuffer) {
             val area = logArea
             if (area != null) {

@@ -3,7 +3,7 @@
 plugins {
     kotlin("jvm") version "1.9.22"
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
-    id("com.gradleup.shadow") version "8.3.6"
+    id("com.gradleup.shadow") version "9.0.0"
     application
 }
 
@@ -74,6 +74,7 @@ tasks.register<Exec>("jpackage") {
         "--name", "THOSC_BOX",
         "--type", "app-image",
         "--dest", outputDir.absolutePath,
+        "--win-console",
         "--java-options", "-Dfile.encoding=UTF-8",
         "--icon", file("windows_default.ico").absolutePath
     )
