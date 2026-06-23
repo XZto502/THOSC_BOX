@@ -82,8 +82,9 @@ fun showMD3MessageDialog(parent: java.awt.Frame, messageText: String) {
         else -> "Notification"
     }
 
-    val titleLabel = javax.swing.JLabel(titleVal).apply {
-        foreground = MD3Color.Primary
+    val titleLabel = object : javax.swing.JLabel(titleVal) {
+        override fun getForeground(): Color = MD3Color.Primary
+    }.apply {
         font = getAppFont(Font.BOLD, 16)
         alignmentX = Component.CENTER_ALIGNMENT
     }
@@ -302,8 +303,22 @@ data class Settings(
     val language: String,
     val oscPort: Int = 9000,
     val enableChatbox: Boolean = true,
-    val appMode: String = "touhou"
+    val appMode: String = "touhou",
+    val themeColorHex: String = "#D0BCFF"
 )
+
+fun parseHexColor(hex: String): Color? {
+    return try {
+        val cleanHex = if (hex.startsWith("#")) hex.substring(1) else hex
+        Color(cleanHex.toInt(16))
+    } catch (e: Exception) {
+        null
+    }
+}
+
+fun Color.toHex(): String {
+    return String.format("#%02X%02X%02X", this.red, this.green, this.blue)
+}
 
 
 fun selectLanguage(): String {
@@ -317,6 +332,8 @@ fun selectLanguage(): String {
                 activeOscPort = settings.oscPort
                 activeEnableChatbox = settings.enableChatbox
                 activeMode = settings.appMode
+                activeThemeColorHex = settings.themeColorHex
+                parseHexColor(settings.themeColorHex)?.let { MD3Color.updateThemeColor(it) }
                 return settings.language
             }
         } catch (e: Exception) {
@@ -452,7 +469,7 @@ fun selectLanguage(): String {
     }
 
     try {
-        val settings = Settings(choice, activeOscPort, activeEnableChatbox)
+        val settings = Settings(choice, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex)
         configFile.writeText(Json.encodeToString(settings))
         val successMsg = when (choice) {
             "zh" -> "语言已设置为：简体中文。配置文件已保存至 settings.json。"
@@ -474,15 +491,33 @@ fun selectLanguage(): String {
 object MD3Color {
     val Background = Color(0x1C, 0x1B, 0x1F)
     val Surface = Color(0x25, 0x23, 0x2A)
-    val Primary = Color(0xD0, 0xBC, 0xFF)
-    val OnPrimary = Color(0x38, 0x1E, 0x72)
-    val SecondaryContainer = Color(0x4A, 0x44, 0x58)
-    val OnSecondaryContainer = Color(0xE8, 0xDE, 0xF8)
+    @Volatile var Primary = Color(0xD0, 0xBC, 0xFF)
+    @Volatile var OnPrimary = Color(0x38, 0x1E, 0x72)
+    @Volatile var SecondaryContainer = Color(0x4A, 0x44, 0x58)
+    @Volatile var OnSecondaryContainer = Color(0xE8, 0xDE, 0xF8)
     val Outline = Color(0x93, 0x8F, 0x99)
     val TextPrimary = Color(0xE6, 0xE1, 0xE5)
     val TextSecondary = Color(0xCA, 0xC4, 0xD0)
     val AccentGreen = Color(0xA8, 0xDA, 0xB5)
     val AccentRed = Color(0xFF, 0xB4, 0xAB)
+
+    fun updateThemeColor(primaryColor: Color) {
+        Primary = primaryColor
+        val r = primaryColor.red / 255.0
+        val g = primaryColor.green / 255.0
+        val b = primaryColor.blue / 255.0
+        val luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        OnPrimary = if (luminance > 0.5) Color(0x1C, 0x1B, 0x1F) else Color(0xFF, 0xFF, 0xFF)
+        val scr = (primaryColor.red * 0.3 + 0x25 * 0.7).toInt().coerceIn(0, 255)
+        val scg = (primaryColor.green * 0.3 + 0x23 * 0.7).toInt().coerceIn(0, 255)
+        val scb = (primaryColor.blue * 0.3 + 0x2A * 0.7).toInt().coerceIn(0, 255)
+        SecondaryContainer = Color(scr, scg, scb)
+        val oscr = (primaryColor.red * 0.5 + 255 * 0.5).toInt().coerceIn(0, 255)
+        val oscg = (primaryColor.green * 0.5 + 255 * 0.5).toInt().coerceIn(0, 255)
+        val oscb = (primaryColor.blue * 0.5 + 255 * 0.5).toInt().coerceIn(0, 255)
+        OnSecondaryContainer = Color(oscr, oscg, oscb)
+        updateUIManagerColors()
+    }
 }
 
 open class MD3Card(val radius: Int = 16) : javax.swing.JPanel() {
@@ -507,14 +542,18 @@ class MD3Button(
 ) : javax.swing.JButton(text) {
     enum class ButtonType { FILLED, OUTLINED, TEXT }
     
+    override fun getForeground(): Color {
+        val t = @Suppress("SENSELESS_COMPARISON") (if (type == null) ButtonType.FILLED else type)
+        return when (t) {
+            ButtonType.FILLED -> MD3Color.OnPrimary
+            ButtonType.OUTLINED -> MD3Color.Primary
+            ButtonType.TEXT -> MD3Color.Primary
+        }
+    }
+    
     var type: ButtonType = initialType
         set(value) {
             field = value
-            foreground = when (value) {
-                ButtonType.FILLED -> MD3Color.OnPrimary
-                ButtonType.OUTLINED -> MD3Color.Primary
-                ButtonType.TEXT -> MD3Color.Primary
-            }
             repaint()
         }
 
@@ -587,9 +626,11 @@ class MD3Button(
 }
 
 class MD3TextField(columns: Int) : javax.swing.JTextField(columns) {
+    override fun getCaretColor(): Color {
+        return MD3Color.Primary
+    }
     init {
         isOpaque = false
-        caretColor = MD3Color.Primary
         foreground = MD3Color.TextPrimary
         background = MD3Color.Surface
         font = getAppFont(Font.PLAIN, 14)
@@ -660,11 +701,13 @@ class MD3CheckboxIcon(val size: Int = 18) : javax.swing.Icon {
 
 class MD3TabButton(text: String, var isActive: Boolean = false) : javax.swing.JButton(text) {
     private var isHovered = false
+    override fun getForeground(): Color {
+        return if (isActive) MD3Color.OnSecondaryContainer else MD3Color.TextSecondary
+    }
     init {
         isContentAreaFilled = false
         isBorderPainted = false
         isFocusable = false
-        foreground = if (isActive) MD3Color.OnSecondaryContainer else MD3Color.TextSecondary
         font = getAppFont(Font.BOLD, 14)
         addMouseListener(object : java.awt.event.MouseAdapter() {
             override fun mouseEntered(e: java.awt.event.MouseEvent?) {
@@ -680,7 +723,6 @@ class MD3TabButton(text: String, var isActive: Boolean = false) : javax.swing.JB
 
     fun updateActive(active: Boolean) {
         isActive = active
-        foreground = if (isActive) MD3Color.OnSecondaryContainer else MD3Color.TextSecondary
         repaint()
     }
 
@@ -861,6 +903,8 @@ class MainWindow : javax.swing.JFrame() {
     val portLabel = javax.swing.JLabel()
     val portField = MD3TextField(8)
     val chatboxCheckBox = javax.swing.JCheckBox()
+    val themeColorLabel = javax.swing.JLabel()
+    val btnChooseColor = MD3Button("", MD3Button.ButtonType.OUTLINED, radius = 12)
     val btnSaveSettings = MD3Button("Save Settings", MD3Button.ButtonType.FILLED)
 
     val logArea = javax.swing.JTextArea().apply {
@@ -904,8 +948,9 @@ class MainWindow : javax.swing.JFrame() {
             background = MD3Color.Background
             isOpaque = false
         }
-        val mainTitleLabel = javax.swing.JLabel("THOSC_BOX").apply {
-            foreground = MD3Color.Primary
+        val mainTitleLabel = object : javax.swing.JLabel("THOSC_BOX") {
+            override fun getForeground(): Color = MD3Color.Primary
+        }.apply {
             font = getAppFont(Font.BOLD, 22)
             alignmentX = Component.LEFT_ALIGNMENT
         }
@@ -1087,7 +1132,61 @@ class MainWindow : javax.swing.JFrame() {
         }
         settingsCard.add(chatboxCheckBox, gbc)
 
+        // Theme color row
+        gbc.gridx = 0
         gbc.gridy = 3
+        gbc.gridwidth = 1
+        gbc.weightx = 0.3
+        themeColorLabel.foreground = MD3Color.TextPrimary
+        themeColorLabel.font = getAppFont(Font.BOLD, 14)
+        settingsCard.add(themeColorLabel, gbc)
+
+        gbc.gridx = 1
+        gbc.weightx = 0.7
+        val colorSelectPanel = javax.swing.JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0)).apply {
+            background = MD3Color.Surface
+            isOpaque = false
+        }
+        val colorPreview = object : javax.swing.JPanel() {
+            init {
+                preferredSize = Dimension(28, 28)
+                isOpaque = false
+            }
+            override fun paintComponent(g: Graphics) {
+                val g2d = g.create() as Graphics2D
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2d.color = MD3Color.Primary
+                g2d.fillRoundRect(0, 0, width, height, 8, 8)
+                g2d.color = MD3Color.Outline
+                g2d.stroke = java.awt.BasicStroke(1.2f)
+                g2d.drawRoundRect(0, 0, width - 1, height - 1, 8, 8)
+                g2d.dispose()
+            }
+        }
+        colorSelectPanel.add(colorPreview)
+        colorSelectPanel.add(btnChooseColor)
+        settingsCard.add(colorSelectPanel, gbc)
+
+        btnChooseColor.addActionListener {
+            val chosenColor = javax.swing.JColorChooser.showDialog(
+                this@MainWindow,
+                when (activeLang) {
+                    "zh" -> "选择主题颜色"
+                    "ja" -> "テーマカラーを選択"
+                    else -> "Choose Theme Color"
+                },
+                MD3Color.Primary
+            )
+            if (chosenColor != null) {
+                changeThemeColor(chosenColor)
+                colorPreview.repaint()
+            }
+        }
+
+        gbc.gridx = 0
+        gbc.gridy = 4
+        gbc.gridwidth = 2
+        gbc.weightx = 1.0
         gbc.insets = Insets(16, 8, 8, 8)
         settingsCard.add(btnSaveSettings, gbc)
 
@@ -1211,6 +1310,16 @@ class MainWindow : javax.swing.JFrame() {
         langLabel.text = getLocalizedString("settings_lang", activeLang)
         portLabel.text = getLocalizedString("settings_port", activeLang)
         chatboxCheckBox.text = getLocalizedString("settings_chatbox", activeLang)
+        themeColorLabel.text = when (activeLang) {
+            "zh" -> "主题颜色"
+            "ja" -> "テーマカラー"
+            else -> "Theme Color"
+        }
+        btnChooseColor.text = when (activeLang) {
+            "zh" -> "选择"
+            "ja" -> "選択"
+            else -> "Choose"
+        }
         btnSaveSettings.text = getLocalizedString("btn_save", activeLang)
         btnClear.text = getLocalizedString("btn_clear", activeLang)
         btnCopy.text = getLocalizedString("btn_copy", activeLang)
@@ -1947,6 +2056,9 @@ var activeMode: String = "touhou"
 var activeOsuHelperProcess: Process? = null
 
 @Volatile
+var activeThemeColorHex: String = "#D0BCFF"
+
+@Volatile
 var activeOscSender: OSCPortOut? = null
 
 var openMenuItem: javax.swing.JMenuItem? = null
@@ -2035,10 +2147,31 @@ fun updateTrayLabels() {
     }
 }
 
+fun updateUIManagerColors() {
+    javax.swing.UIManager.put("MenuItem.selectionBackground", MD3Color.SecondaryContainer)
+    javax.swing.UIManager.put("MenuItem.selectionForeground", MD3Color.OnSecondaryContainer)
+    javax.swing.UIManager.put("Menu.selectionBackground", MD3Color.SecondaryContainer)
+    javax.swing.UIManager.put("Menu.selectionForeground", MD3Color.OnSecondaryContainer)
+}
+
+fun changeThemeColor(color: Color) {
+    MD3Color.updateThemeColor(color)
+    activeThemeColorHex = color.toHex()
+    try {
+        val settings = Settings(activeLang, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex)
+        java.io.File("settings.json").writeText(Json.encodeToString(settings))
+    } catch (e: Exception) {
+        println("Warning: Failed to save settings.json: ${e.message}")
+    }
+    java.awt.EventQueue.invokeLater {
+        mainWindow?.repaint()
+    }
+}
+
 fun changeLanguage(lang: String) {
     activeLang = lang
     try {
-        val settings = Settings(lang, activeOscPort, activeEnableChatbox, activeMode)
+        val settings = Settings(lang, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex)
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         // Ignore
@@ -2068,7 +2201,7 @@ fun changeSettings(lang: String, port: Int, enableChatbox: Boolean) {
     }
 
     try {
-        val settings = Settings(lang, port, enableChatbox, activeMode)
+        val settings = Settings(lang, port, enableChatbox, activeMode, activeThemeColorHex)
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         println("Warning: Failed to save settings.json: ${e.message}")
@@ -2119,7 +2252,7 @@ fun stopOsuHelper() {
 fun changeMode(mode: String) {
     activeMode = mode
     try {
-        val settings = Settings(activeLang, activeOscPort, activeEnableChatbox, mode)
+        val settings = Settings(activeLang, activeOscPort, activeEnableChatbox, mode, activeThemeColorHex)
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         println("Warning: Failed to save settings.json: ${e.message}")
@@ -2336,6 +2469,7 @@ fun main() {
     Runtime.getRuntime().addShutdownHook(Thread {
         stopOsuHelper()
     })
+    updateUIManagerColors()
     LogManager.init()
     selectLanguage()
 
