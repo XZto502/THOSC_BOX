@@ -120,6 +120,225 @@ fun showMD3MessageDialog(parent: java.awt.Frame, messageText: String) {
     dialog.isVisible = true
 }
 
+fun showMD3ColorChooser(parent: java.awt.Frame, titleText: String, initialColor: Color, onColorSelected: (Color) -> Unit) {
+    val dialog = javax.swing.JDialog(parent, "", true)
+    dialog.isUndecorated = true
+    dialog.background = Color(0, 0, 0, 0)
+    dialog.size = Dimension(380, 360)
+    dialog.setLocationRelativeTo(parent)
+
+    val mainPanel = object : javax.swing.JPanel() {
+        override fun paintComponent(g: Graphics) {
+            val g2d = g.create() as Graphics2D
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2d.color = MD3Color.Surface
+            g2d.fillRoundRect(1, 1, width - 2, height - 2, 24, 24)
+            g2d.color = MD3Color.Outline
+            g2d.stroke = java.awt.BasicStroke(1.5f)
+            g2d.drawRoundRect(1, 1, width - 3, height - 3, 24, 24)
+            g2d.dispose()
+        }
+    }
+    mainPanel.layout = javax.swing.BoxLayout(mainPanel, javax.swing.BoxLayout.Y_AXIS)
+    mainPanel.isOpaque = false
+    mainPanel.border = javax.swing.BorderFactory.createEmptyBorder(20, 20, 20, 20)
+
+    val titleLabel = javax.swing.JLabel(titleText).apply {
+        foreground = MD3Color.Primary
+        font = getAppFont(Font.BOLD, 18)
+        alignmentX = Component.CENTER_ALIGNMENT
+    }
+    mainPanel.add(titleLabel)
+    mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 16)))
+
+    // Grid of preset colors (curated MD3 tones)
+    val presets = listOf(
+        Color(0xD0, 0xBC, 0xFF), // Lavender (Default)
+        Color(0xFF, 0xB0, 0xC8), // Sakura Pink
+        Color(0xA8, 0xDA, 0xB5), // Mint Green
+        Color(0xA8, 0xC7, 0xFA), // Sky Blue
+        Color(0x80, 0xF0, 0xDC), // Teal
+        Color(0xFF, 0xB8, 0x99), // Peach Orange
+        Color(0xF2, 0xE0, 0x88), // Lemon Yellow
+        Color(0xFF, 0xB4, 0xAB), // Coral Red
+        Color(0xE0, 0xE0, 0xE0), // Light Gray
+        Color(0xF8, 0xBD, 0xE6)  // Orchid Pink
+    )
+
+    var selectedColor = initialColor
+
+    val presetGridPanel = javax.swing.JPanel(java.awt.GridLayout(2, 5, 10, 10)).apply {
+        background = MD3Color.Surface
+        isOpaque = false
+        alignmentX = Component.CENTER_ALIGNMENT
+        maximumSize = Dimension(340, 90)
+    }
+
+    // We want a live preview panel
+    val livePreview = object : javax.swing.JPanel() {
+        init {
+            preferredSize = Dimension(32, 32)
+            minimumSize = Dimension(32, 32)
+            maximumSize = Dimension(32, 32)
+            isOpaque = false
+        }
+        override fun paintComponent(g: Graphics) {
+            val g2d = g.create() as Graphics2D
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2d.color = selectedColor
+            g2d.fillRoundRect(0, 0, width, height, 10, 10)
+            g2d.color = MD3Color.Outline
+            g2d.stroke = java.awt.BasicStroke(1.2f)
+            g2d.drawRoundRect(0, 0, width - 1, height - 1, 10, 10)
+            g2d.dispose()
+        }
+    }
+
+    // Input hex field
+    val hexField = MD3TextField(8).apply {
+        text = selectedColor.toHex()
+        alignmentX = Component.CENTER_ALIGNMENT
+        maximumSize = Dimension(150, 36)
+    }
+
+    // Track button borders or states for presets
+    val presetButtons = mutableListOf<javax.swing.JButton>()
+
+    fun updateSelection(color: Color, updateField: Boolean = true) {
+        selectedColor = color
+        livePreview.repaint()
+        if (updateField) {
+            hexField.text = color.toHex()
+        }
+        // Repaint all preset buttons to show selection outline
+        presetGridPanel.repaint()
+    }
+
+    presets.forEach { color ->
+        val btn = object : javax.swing.JButton() {
+            init {
+                isContentAreaFilled = false
+                isBorderPainted = false
+                isFocusable = false
+                preferredSize = Dimension(32, 32)
+            }
+            override fun paintComponent(g: Graphics) {
+                val g2d = g.create() as Graphics2D
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2d.color = color
+                g2d.fillRoundRect(2, 2, width - 4, height - 4, 8, 8)
+                
+                // If this color matches selectedColor (approximate or exact)
+                if (color.rgb == selectedColor.rgb) {
+                    g2d.color = MD3Color.Primary
+                    g2d.stroke = java.awt.BasicStroke(2.0f)
+                    g2d.drawRoundRect(0, 0, width - 1, height - 1, 10, 10)
+                } else {
+                    g2d.color = MD3Color.Outline
+                    g2d.stroke = java.awt.BasicStroke(1.0f)
+                    g2d.drawRoundRect(2, 2, width - 5, height - 5, 8, 8)
+                }
+                g2d.dispose()
+            }
+        }
+        btn.addActionListener {
+            updateSelection(color)
+        }
+        presetButtons.add(btn)
+        presetGridPanel.add(btn)
+    }
+
+    mainPanel.add(presetGridPanel)
+    mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 20)))
+
+    // Custom Hex input row
+    val hexRow = javax.swing.JPanel(java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 10, 0)).apply {
+        background = MD3Color.Surface
+        isOpaque = false
+        alignmentX = Component.CENTER_ALIGNMENT
+    }
+    val hexLabel = javax.swing.JLabel(when (activeLang) {
+        "zh" -> "十六进制:"
+        "ja" -> "16進数:"
+        else -> "Hex:"
+    }).apply {
+        foreground = MD3Color.TextPrimary
+        font = getAppFont(Font.PLAIN, 14)
+    }
+    hexRow.add(hexLabel)
+    hexRow.add(hexField)
+    hexRow.add(livePreview)
+
+    mainPanel.add(hexRow)
+    mainPanel.add(javax.swing.Box.createRigidArea(Dimension(0, 24)))
+
+    // Action Listener for live text typing
+    hexField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+        override fun insertUpdate(e: javax.swing.event.DocumentEvent?) { checkHex() }
+        override fun removeUpdate(e: javax.swing.event.DocumentEvent?) { checkHex() }
+        override fun changedUpdate(e: javax.swing.event.DocumentEvent?) { checkHex() }
+        private fun checkHex() {
+            val text = hexField.text.trim()
+            parseHexColor(text)?.let {
+                updateSelection(it, updateField = false)
+            }
+        }
+    })
+
+    // OK and Cancel buttons
+    val actionRow = javax.swing.JPanel(java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 16, 0)).apply {
+        background = MD3Color.Surface
+        isOpaque = false
+        alignmentX = Component.CENTER_ALIGNMENT
+    }
+    val cancelBtnText = when (activeLang) {
+        "zh" -> "取消"
+        "ja" -> "キャンセル"
+        else -> "Cancel"
+    }
+    val cancelBtn = MD3Button(cancelBtnText, MD3Button.ButtonType.OUTLINED, radius = 18).apply {
+        preferredSize = Dimension(100, 36)
+        addActionListener {
+            dialog.dispose()
+        }
+    }
+    val okBtnText = when (activeLang) {
+        "zh" -> "确定"
+        "ja" -> "確定"
+        else -> "OK"
+    }
+    val okBtn = MD3Button(okBtnText, MD3Button.ButtonType.FILLED, radius = 18).apply {
+        preferredSize = Dimension(100, 36)
+        addActionListener {
+            onColorSelected(selectedColor)
+            dialog.dispose()
+        }
+    }
+    actionRow.add(cancelBtn)
+    actionRow.add(okBtn)
+
+    mainPanel.add(actionRow)
+
+    // Allow dragging the undecorated dialog
+    var dragStart: Point? = null
+    mainPanel.addMouseListener(object : java.awt.event.MouseAdapter() {
+        override fun mousePressed(e: java.awt.event.MouseEvent) {
+            dragStart = e.point
+        }
+    })
+    mainPanel.addMouseMotionListener(object : java.awt.event.MouseMotionAdapter() {
+        override fun mouseDragged(e: java.awt.event.MouseEvent) {
+            val curr = e.locationOnScreen
+            if (dragStart != null) {
+                dialog.setLocation(curr.x - dragStart!!.x, curr.y - dragStart!!.y)
+            }
+        }
+    })
+
+    dialog.contentPane = mainPanel
+    dialog.isVisible = true
+}
+
 object LogManager {
     private val logBuffer = StringBuilder()
     private var logArea: javax.swing.JTextArea? = null
@@ -1181,7 +1400,7 @@ class MainWindow : javax.swing.JFrame() {
         settingsCard.add(colorSelectPanel, gbc)
 
         btnChooseColor.addActionListener {
-            val chosenColor = javax.swing.JColorChooser.showDialog(
+            showMD3ColorChooser(
                 this@MainWindow,
                 when (activeLang) {
                     "zh" -> "选择主题颜色"
@@ -1189,8 +1408,7 @@ class MainWindow : javax.swing.JFrame() {
                     else -> "Choose Theme Color"
                 },
                 MD3Color.Primary
-            )
-            if (chosenColor != null) {
+            ) { chosenColor ->
                 changeThemeColor(chosenColor)
                 colorPreview.repaint()
             }

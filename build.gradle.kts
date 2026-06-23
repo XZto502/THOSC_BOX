@@ -74,7 +74,6 @@ tasks.register<Exec>("jpackage") {
         "--name", "THOSC_BOX",
         "--type", "app-image",
         "--dest", outputDir.absolutePath,
-        "--win-console",
         "--java-options", "-Dfile.encoding=UTF-8",
         "--icon", file("windows_default.ico").absolutePath
     )
