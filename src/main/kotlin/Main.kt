@@ -2820,7 +2820,16 @@ fun runOsuScannerLoop() {
                 val bpmMax = bpmObj?.get("max")?.jsonPrimitive?.floatOrNull ?: 0f
                 val bpm = maxOf(bpmMin, bpmMax)
 
+                val modsObj = menu?.get("mods")?.jsonObject
+                val modsNum = modsObj?.get("num")?.jsonPrimitive?.intOrNull ?: 0
+                val modsStrRaw = modsObj?.get("str")?.jsonPrimitive?.content ?: ""
+                val modsStr = if (modsStrRaw.isEmpty() || modsStrRaw.equals("nm", ignoreCase = true)) "NM" else modsStrRaw
+
                 val gameplay = root["gameplay"]?.jsonObject
+                val ppObj = gameplay?.get("pp")?.jsonObject
+                val ppCurrent = ppObj?.get("current")?.jsonPrimitive?.floatOrNull ?: 0f
+                val ppFc = ppObj?.get("fc")?.jsonPrimitive?.floatOrNull ?: 0f
+
                 val score = gameplay?.get("score")?.jsonPrimitive?.intOrNull ?: 0
                 val accuracy = gameplay?.get("accuracy")?.jsonPrimitive?.floatOrNull ?: 0f
                 
@@ -2830,6 +2839,9 @@ fun runOsuScannerLoop() {
 
                 val hits = gameplay?.get("hits")?.jsonObject
                 val miss = hits?.get("0")?.jsonPrimitive?.intOrNull ?: 0
+                val hit300 = hits?.get("300")?.jsonPrimitive?.intOrNull ?: 0
+                val hit100 = hits?.get("100")?.jsonPrimitive?.intOrNull ?: 0
+                val hit50 = hits?.get("50")?.jsonPrimitive?.intOrNull ?: 0
                 val gradeObj = hits?.get("grade")?.jsonObject
                 val grade = gradeObj?.get("current")?.jsonPrimitive?.content ?: ""
 
@@ -2841,14 +2853,14 @@ fun runOsuScannerLoop() {
                     4 -> "Playing"
                     else -> "Idle"
                 }
-                activeStatus = ScannerStatus.PLAYING("osu! ($stateText)")
+                activeStatus = ScannerStatus.PLAYING("osu! ($stateText) [$modsStr]")
                 java.awt.EventQueue.invokeLater {
                     updateTrayLabels()
                 }
 
                 java.awt.EventQueue.invokeLater {
                     mainWindow?.apply {
-                        gameCard.updateValue("osu! ($stateText)")
+                        gameCard.updateValue("osu! ($stateText) [$modsStr]")
                         charaCard.updateValue(if (title.isNotEmpty()) "$artist - $title" else "N/A")
                         stageCard.updateValue(if (difficulty.isNotEmpty()) "$difficulty (${String.format(java.util.Locale.US, "%.2f", stars)}*)" else "N/A")
                         
@@ -2858,7 +2870,10 @@ fun runOsuScannerLoop() {
                             bombsCard.updateValue(currentCombo.toString())
                             powerCard.updateValue(maxCombo.toString())
                             grazeCard.updateValue(String.format(java.util.Locale.US, "%.2f%%", accuracy))
-                            pointCard.updateValue(grade.ifEmpty { "N/A" })
+                            
+                            val ppCurrentStr = String.format(java.util.Locale.US, "%.0f", ppCurrent)
+                            val ppFcStr = String.format(java.util.Locale.US, "%.0f", ppFc)
+                            pointCard.updateValue("${grade.ifEmpty { "N/A" }} [PP: $ppCurrentStr / $ppFcStr]")
                         } else {
                             scoreCard.updateValue("0")
                             livesCard.updateValue("0")
@@ -2884,6 +2899,15 @@ fun runOsuScannerLoop() {
                         
                         val oscHp = if (hpNormal > 1f) hpNormal / 200f else hpNormal
                         send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuHP", listOf(if (state == 4) oscHp else 0f)))
+
+                        // New parameters
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuPPCurrent", listOf(if (state == 4) ppCurrent else 0f)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuPPFC", listOf(if (state == 4) ppFc else 0f)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuModsNum", listOf(modsNum)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuModsStr", listOf(modsStr)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuHit300", listOf(if (state == 4) hit300 else 0)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuHit100", listOf(if (state == 4) hit100 else 0)))
+                        send(com.illposed.osc.OSCMessage("/avatar/parameters/OsuHit50", listOf(if (state == 4) hit50 else 0)))
                     }
                 } catch (e: Exception) {
                     // Ignore
@@ -2892,10 +2916,12 @@ fun runOsuScannerLoop() {
                 if (activeEnableChatbox && state == 4) {
                     val now = System.currentTimeMillis()
                     if (state != lastOsuState || miss != lastOsuMiss || (now - lastChatboxTime > 8000)) {
+                        val ppCurrentStr = String.format(java.util.Locale.US, "%.0f", ppCurrent)
+                        val ppFcStr = String.format(java.util.Locale.US, "%.0f", ppFc)
                         val chatboxText = when (activeLang) {
-                            "zh" -> "[osu!] 正在玩: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) | Combo: ${currentCombo}x | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
-                            "ja" -> "[osu!] プレイ中: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) | Combo: ${currentCombo}x | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
-                            else -> "[osu!] Playing: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) | Combo: ${currentCombo}x | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
+                            "zh" -> "[osu!] 正在玩: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) [$modsStr] | Combo: ${currentCombo}x | PP: $ppCurrentStr/$ppFcStr | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
+                            "ja" -> "[osu!] プレイ中: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) [$modsStr] | Combo: ${currentCombo}x | PP: $ppCurrentStr/$ppFcStr | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
+                            else -> "[osu!] Playing: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) [$modsStr] | Combo: ${currentCombo}x | PP: $ppCurrentStr/$ppFcStr | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
                         }
                         try {
                             activeOscSender?.send(com.illposed.osc.OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
