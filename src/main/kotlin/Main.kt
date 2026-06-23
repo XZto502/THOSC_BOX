@@ -1944,6 +1944,9 @@ var activeEnableChatbox: Boolean = true
 var activeMode: String = "touhou"
 
 @Volatile
+var activeOsuHelperProcess: Process? = null
+
+@Volatile
 var activeOscSender: OSCPortOut? = null
 
 var openMenuItem: javax.swing.JMenuItem? = null
@@ -2077,6 +2080,42 @@ fun changeSettings(lang: String, port: Int, enableChatbox: Boolean) {
     }
 }
 
+fun checkAndStartOsuHelper() {
+    if (activeMode != "osu") return
+    if (activeOsuHelperProcess != null && activeOsuHelperProcess!!.isAlive) {
+        return
+    }
+    val candidates = listOf(
+        java.io.File("gosumemory.exe"),
+        java.io.File("gosumemory/gosumemory.exe"),
+        java.io.File("tosu.exe"),
+        java.io.File("tosu/tosu.exe")
+    )
+    val exeFile = candidates.firstOrNull { it.exists() && it.isFile }
+    if (exeFile != null) {
+        try {
+            val pb = ProcessBuilder(exeFile.absolutePath)
+                .directory(exeFile.parentFile ?: java.io.File("."))
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD)
+            activeOsuHelperProcess = pb.start()
+            println("Info: Automatically started osu! helper from ${exeFile.absolutePath}")
+        } catch (e: Exception) {
+            println("Warning: Failed to start osu! helper: ${e.message}")
+        }
+    }
+}
+
+fun stopOsuHelper() {
+    activeOsuHelperProcess?.let { process ->
+        if (process.isAlive) {
+            process.destroy()
+            println("Info: Stopped osu! helper process.")
+        }
+        activeOsuHelperProcess = null
+    }
+}
+
 fun changeMode(mode: String) {
     activeMode = mode
     try {
@@ -2084,6 +2123,11 @@ fun changeMode(mode: String) {
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         println("Warning: Failed to save settings.json: ${e.message}")
+    }
+    if (mode != "osu") {
+        stopOsuHelper()
+    } else {
+        checkAndStartOsuHelper()
     }
     java.awt.EventQueue.invokeLater {
         mainWindow?.updateCardLabels()
@@ -2289,6 +2333,9 @@ fun initSystemTray() {
 }
 
 fun main() {
+    Runtime.getRuntime().addShutdownHook(Thread {
+        stopOsuHelper()
+    })
     LogManager.init()
     selectLanguage()
 
@@ -2945,6 +2992,7 @@ fun runOsuScannerLoop() {
 }
 
 private fun handleOsuOffline() {
+    checkAndStartOsuHelper()
     activeStatus = ScannerStatus.SCANNING
     java.awt.EventQueue.invokeLater {
         updateTrayLabels()
