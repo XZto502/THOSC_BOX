@@ -854,29 +854,6 @@ class MainWindow : javax.swing.JFrame() {
     val btnClear = MD3Button("", MD3Button.ButtonType.OUTLINED, radius = 20)
     val btnCopy = MD3Button("", MD3Button.ButtonType.OUTLINED, radius = 20)
 
-    val statusPillLabel = javax.swing.JLabel().apply {
-        foreground = MD3Color.TextPrimary
-        font = getAppFont(Font.BOLD, 12)
-    }
-    
-    val statusPill = object : javax.swing.JPanel() {
-        override fun paintComponent(g: Graphics) {
-            val g2d = g.create() as Graphics2D
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g2d.color = when (activeStatus) {
-                ScannerStatus.SCANNING -> MD3Color.SecondaryContainer
-                is ScannerStatus.PLAYING -> MD3Color.AccentGreen
-            }
-            g2d.fillRoundRect(0, 0, width, height, height, height)
-            g2d.dispose()
-        }
-    }.apply {
-        isOpaque = false
-        layout = GridBagLayout()
-        preferredSize = Dimension(160, 32)
-        add(statusPillLabel)
-    }
-
     init {
         title = "THOSC_BOX"
         defaultCloseOperation = javax.swing.JFrame.EXIT_ON_CLOSE
@@ -920,7 +897,6 @@ class MainWindow : javax.swing.JFrame() {
         titleTextPanel.add(mainTitleLabel)
         titleTextPanel.add(subTitleLabel)
         headerPanel.add(titleTextPanel, BorderLayout.WEST)
-        headerPanel.add(statusPill, BorderLayout.EAST)
         rootPanel.add(headerPanel, BorderLayout.NORTH)
 
         val bodyPanel = javax.swing.JPanel(BorderLayout()).apply {
@@ -1148,17 +1124,7 @@ class MainWindow : javax.swing.JFrame() {
         refreshUILabels()
     }
 
-    fun updateStatusPill() {
-        statusPillLabel.text = when (val s = activeStatus) {
-            ScannerStatus.SCANNING -> getLocalizedString("status_scanning", activeLang)
-            is ScannerStatus.PLAYING -> s.gameName
-        }
-        statusPillLabel.foreground = when (activeStatus) {
-            ScannerStatus.SCANNING -> MD3Color.TextPrimary
-            is ScannerStatus.PLAYING -> MD3Color.OnPrimary
-        }
-        statusPill.repaint()
-    }
+
 
     fun refreshUILabels() {
         btnDashboard.text = getLocalizedString("tab_dashboard", activeLang)
@@ -1185,8 +1151,6 @@ class MainWindow : javax.swing.JFrame() {
         btnCopy.text = getLocalizedString("btn_copy", activeLang)
 
         title = getLocalizedString("title_app", activeLang)
-
-        updateStatusPill()
     }
 
     fun updateScanningStatus() {
@@ -2317,7 +2281,6 @@ fun runScannerLoop(games: List<GameConfig>) {
             activeStatus = ScannerStatus.PLAYING(gameLocalizedName)
             java.awt.EventQueue.invokeLater {
                 updateTrayLabels()
-                mainWindow?.updateStatusPill()
             }
 
             val gameDetectedMsg = when (activeLang) {
@@ -2714,7 +2677,6 @@ fun runScannerLoop(games: List<GameConfig>) {
                 activeStatus = ScannerStatus.SCANNING
                 java.awt.EventQueue.invokeLater {
                     updateTrayLabels()
-                    mainWindow?.updateStatusPill()
                     mainWindow?.updateScanningStatus()
                 }
             }
