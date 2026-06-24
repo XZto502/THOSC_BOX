@@ -1,4 +1,4 @@
-# THOSC_BOX - Touhou Project VRChat OSC Bridge | 东方Project VRChat OSC 桥接工具 | 東方Project VRChat OSC 送信ツール
+# THOSC_BOX - Touhou Project & osu! VRChat OSC Bridge | 东方Project & osu! VRChat OSC 桥接工具 | 東方Project & osu! VRChat OSC 送信ツール
 
 [English](#english) | [简体中文](#简体中文) | [日本語](#日本語)
 
@@ -6,19 +6,28 @@
 
 ## English
 
-**THOSC_BOX** is a high-performance VRChat OSC bridge designed for official mainline Touhou Project games (TH06 through TH20). It reads real-time gameplay statistics directly from the game's memory and transmits them via OSC (Open Sound Control) protocol to VRChat to drive avatar parameters and display your live gameplay status in the VRChat Chatbox.
+**THOSC_BOX** is a high-performance VRChat OSC bridge designed for official mainline Touhou Project games (TH06 through TH20) and **osu!** gameplay. It reads real-time gameplay statistics directly from game memory or HTTP telemetry APIs and transmits them via OSC (Open Sound Control) protocol to VRChat to drive avatar parameters and display your live gameplay status in the VRChat Chatbox.
 
 ### 🌟 Key Features
+- **Multi-Mode Support**: Toggle between **Touhou Mode** and **osu! Mode** dynamically from the UI.
 - **Wide Mainline Game Support**: Seamlessly supports 15 mainline Touhou games from **TH06 (Embodiment of Scarlet Devil)** up to **TH20 (Fossilized Wonders)**.
-- **Real-Time Data Extraction**:
-  - **Score**: Real-time extraction with automatic scaling multiplier recovery.
-  - **Miss & Bomb Tracking**: Automatically calculates cumulative session deaths (misses) and bomb usages (resets on restart/new game, optimized for TH10/TH11 power-based bombs).
-  - **Stage & Difficulty**: Auto-detects play difficulty (Easy, Normal, Hard, Lunatic, Extra, Phantasm) and active stage number.
-- **ASLR Compatibility**: Dynamic memory offset resolution to fully support Steam versions with ASLR enabled.
-- **Stable & Lightweight**: Built with highly compatible process detection and JNA-based memory access, ensuring zero crashes or performance impact on the running game.
+- **osu! Live Integration**:
+  - Automatically fetches stats from local HTTP APIs (`gosumemory` / `tosu`).
+  - **Auto-Launch & Stop**: Automatically scans and launches helper executables (e.g. `gosumemory.exe` or `tosu.exe`) when entering osu! mode and cleans them up upon exit.
+  - Telemetry features: Real-time PP, accuracy, combos, hit counts (300/100/50), stars, BPM, HP, active mods (num/str), and grades.
+- **Extended Touhou Memory Statistics**:
+  - Tracks score (scaled), cumulative misses/bombs, active stage & difficulty, character/subshot selection, graze, power, point items (PIV), cherry max, and active spell card ID & names.
+- **Dynamic MD3 UI Theme Customizer**:
+  - Customize the UI accent color at runtime using an MD3 preset grid palette and custom hex inputs.
+  - Contrast-aware color generation and runtime UI look-and-feel updates.
+  - Automatically persists preferences in `settings.json`.
+- **ASLR & High Stability**: Dynamic memory base offset resolving to fully support Steam versions with ASLR. Lightweight read-only JNA memory access ensures zero crashes or performance impact.
+- **Modular Codebase**: Split into clean component modules (`UiComponents.kt`, `Settings.kt`, `Scanner.kt`, `OsuTelemetry.kt`, `MainWindow.kt`) for easy maintainability.
 
 ### 📡 VRChat OSC Parameters
-THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's default OSC input port) every 2 seconds:
+
+#### 1. Touhou Mode Parameters
+Broadcasts to `127.0.0.1:9000`:
 
 | Parameter Name | Data Type | Description |
 | :--- | :--- | :--- |
@@ -27,10 +36,45 @@ THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's defau
 | `/avatar/parameters/TouhouScore` | `Int` | Current in-game score (fully recovered value). |
 | `/avatar/parameters/TouhouMiss` | `Int` | Cumulative player deaths (misses) in the current session. |
 | `/avatar/parameters/TouhouBomb` | `Int` | Cumulative bomb usages in the current session. |
-| `/avatar/parameters/TouhouDifficulty` | `Int` | Numeric value of difficulty: `0` (Easy), `1` (Normal), `2` (Hard), `3` (Lunatic), `4` (Extra), `5` (Phantasm). |
-| `/avatar/parameters/TouhouDifficultyName` | `String` | Text name of the difficulty (e.g. `Normal`, `Lunatic`). |
-| `/avatar/parameters/TouhouStage` | `Int` | Normalized active stage number: `1`-`6` for main stages, `7` for Extra, `8` for Phantasm. |
-| `/chatbox/input` | `String, Bool, Bool` | Sends a formatted status text to VRChat Chatbox. Example: <br>`Game: <GameName> [<Difficulty>] | Stage: <Stage> | Score: <Score> | Miss: <Miss> | Bomb: <Bomb>` |
+| `/avatar/parameters/TouhouDifficulty` | `Int` | Difficulty index: `0` (Easy) to `5` (Phantasm). |
+| `/avatar/parameters/TouhouDifficultyName` | `String` | Text name of the difficulty (e.g. `Lunatic`). |
+| `/avatar/parameters/TouhouCharacter` | `Int` | Character ID index. |
+| `/avatar/parameters/TouhouSubshot` | `Int` | Subshot/shottype ID index. |
+| `/avatar/parameters/TouhouCharacterName` | `String` | Text name of character & shottype (e.g. `Reimu A (Homing)`). |
+| `/avatar/parameters/TouhouStage` | `Int` | Normalized active stage: `1`-`6` (Main), `7` (Extra), `8` (Phantasm). |
+| `/avatar/parameters/TouhouGraze` | `Int` | Current graze count. |
+| `/avatar/parameters/TouhouPower` | `Float` | Current power (normalized to `0.0` - `4.0` / `8.0`). |
+| `/avatar/parameters/TouhouPowerRaw` | `Int` | Current raw power value. |
+| `/avatar/parameters/TouhouPoint` | `Int` | Current point item value (PIV). |
+| `/avatar/parameters/TouhouCherryMax` | `Int` | Current maximum cherry points (TH07). |
+| `/avatar/parameters/TouhouSpellID` | `Int` | Active spell card ID (or `-1` if inactive). |
+| `/avatar/parameters/TouhouSpellActive` | `Bool` | `true` if currently in a spellcard duel. |
+| `/avatar/parameters/TouhouSpellName` | `String` | Text name of the active spellcard. |
+| `/chatbox/input` | `String, Bool, Bool` | Sends: `Playing: <GameName> [<Diff>] | Chara: <Chara> | Stage: <Stage> | Score: <Score> | Miss: <Miss> | Bomb: <Bomb>` |
+
+#### 2. osu! Mode Parameters
+Broadcasts to `127.0.0.1:9000`:
+
+| Parameter Name | Data Type | Description |
+| :--- | :--- | :--- |
+| `/avatar/parameters/OsuStatus` | `Int` | Gameplay status: `2` (Menu), `4` (Playing), etc. |
+| `/avatar/parameters/OsuScore` | `Int` | Active map score. |
+| `/avatar/parameters/OsuCombo` | `Int` | Current combo count. |
+| `/avatar/parameters/OsuMaxCombo` | `Int` | Highest combo achieved in current map. |
+| `/avatar/parameters/OsuAccuracy` | `Float` | Normalised accuracy (`0.0f` to `1.0f`). |
+| `/avatar/parameters/OsuMiss` | `Int` | Active map miss count. |
+| `/avatar/parameters/OsuGrade` | `String` | Current hit grade (e.g. `SS`, `SH`, `A`). |
+| `/avatar/parameters/OsuBPM` | `Float` | Song tempo beats per minute. |
+| `/avatar/parameters/OsuStars` | `Float` | Mod-adjusted star rating (SR) of the beatmap. |
+| `/avatar/parameters/OsuHP` | `Float` | Normalised health bar value (`0.0f` - `1.0f`). |
+| `/avatar/parameters/OsuPPCurrent` | `Float` | Live performance points (PP) generated. |
+| `/avatar/parameters/OsuPPFC` | `Float` | Maximum performance points (PP) for a Full Combo. |
+| `/avatar/parameters/OsuModsNum` | `Int` | Raw integer representation of active mods. |
+| `/avatar/parameters/OsuModsStr` | `String` | Text representation of active mods (e.g. `HDDT`). |
+| `/avatar/parameters/OsuHit300` | `Int` | Count of 300 hits. |
+| `/avatar/parameters/OsuHit100` | `Int` | Count of 100 hits. |
+| `/avatar/parameters/OsuHit50` | `Int` | Count of 50 hits. |
+| `/chatbox/input` | `String, Bool, Bool` | Sends: `[osu!] Playing: <Artist> - <Title> [<Diff>] (<Stars>*) [<Mods>] | Combo: <Combo>x | PP: <PP>/<PP_FC> | Acc: <Acc>% | Miss: <Miss>` |
 
 ### 🛠️ Building from Source
 - **Requirements**: JDK 17 or higher.
@@ -38,50 +82,83 @@ THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's defau
   ```powershell
   ./gradlew shadowJar
   ```
-  Output file: `build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar`
 - **Build Standalone EXE**:
   ```powershell
   ./gradlew jpackage
-  ```
-  Output path: `build/jpackage/THOSC_BOX/` (includes the standalone EXE and minimal Java runtime).
-
-### 🚀 Running the App
-- **Option 1 (Pre-compiled Release - Recommended)**: Download the latest archive from the [GitHub Releases](https://github.com/XZto502/THOSC_BOX/releases) page, extract it, and double-click `THOSC_BOX.exe`.
-- **Option 2 (Build locally)**: Go to `build/jpackage/THOSC_BOX/` and run `THOSC_BOX.exe`.
-- **Option 3 (Run JAR)**: Run the shadow JAR from the terminal:
-  ```powershell
-  java -Dfile.encoding=UTF-8 -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
   ```
 
 ---
 
 ## 简体中文
 
-**THOSC_BOX** 是一款专为《东方Project》官方正作（TH06 至 TH20）设计的 VRChat OSC 桥接工具。它通过读取运行中的游戏内存，实时将分数、累计死亡次数（Miss数）、累计炸弹使用次数（Bomb数）、当前关卡（Stage）及游戏难度（Difficulty）等数据，通过 OSC 协议发送至 VRChat，用以动态驱动 Avatar 虚拟形象的参数，并同步推送实时状态至聊天框（Chatbox）。
+**THOSC_BOX** 是一款专为《东方Project》官方正作（TH06 至 TH20）及 **osu!** 游戏设计的 VRChat OSC 桥接工具。它通过读取运行中的游戏内存或 HTTP 遥测接口，实时将游玩数据（分数、死亡次数、炸弹使用数、当前关卡、PP值等）通过 OSC 协议发送至 VRChat，用以动态驱动 Avatar 虚拟形象的参数，并同步推送实时状态至聊天框（Chatbox）。
 
 ### 🌟 功能特性
-- **支持作品广泛**：原生无缝支持从 **TH06《东方红魔乡》** 到最新作 **TH20《东方锦上京》** 的共 15 部 mainline 官方正作。
-- **实时核心数据提取**：
-  - **分数 (Score)**：实时读取并自动完成倍率还原。
-  - **死亡与炸弹统计**：自动计算单次会话中的累计死亡次数和炸弹使用数（开始新游戏或重开时自动清零，并针对 TH10/TH11 消耗 Power 释放灵击的特色机制进行了优化判定）。
-  - **关卡与难度**：自动获取当前游玩难度（Easy, Normal, Hard, Lunatic, Extra, Phantasm）和当前关卡面数。
-- **ASLR 动态基址解析**：完美适配 Steam 版本等启用了 ASLR（地址空间配置随机化）的游戏模块基址。
-- **稳定与轻量化**：基于 JNA实现进程检测与安全只读式内存访问，对游戏无任何性能影响，绝不引起游戏崩溃。
+- **多模式动态切换**：在 UI 顶部一键切换 **东方模式** 与 **osu! 模式**。
+- **支持作品广泛**：无缝支持从 **TH06《东方红魔乡》** 到最新作 **TH20《东方锦上京》** 的共 15 部官方正作。
+- **osu! 实时遥测集成**：
+  - 自动通过本地 HTTP API 抓取游戏数据（支持 `gosumemory` / `tosu`）。
+  - **自动拉起与清理**：进入 osu! 模式时若检测到接口未运行，自动查找并后台拉起 `gosumemory.exe` 或 `tosu.exe`，退出模式时自动结束进程。
+  - 支持数据：实时 PP、准确率、Combo、最大 Combo、击中判定（300/100/50）、星数、BPM、HP 槽、模组（mods）及评级。
+- **东方丰富内存数据解析**：
+  - 支持读取分数（自动还原倍率）、单次死亡与炸弹统计（灵击优化）、机体与子弹类型、擦弹、火力值、得分道具（PIV）、最大樱点（TH07）及实时符卡名/符卡 ID。
+- **Material Design 3 风格与动态主题色**：
+  - 采用 MD3 扁平化面板设计与调色盘自定义颜色选取。
+  - 支持根据明暗度自适应前景色计算，实时重绘并应用主题，在 `settings.json` 中保存配置。
+- **基址解析与高稳定性**：完美适配 Steam 版本等启用了 ASLR 的游戏模块。基于 JNA 的只读型安全内存访问，杜绝游戏崩溃。
+- **模块化结构**：将大型 `Main.kt` 拆分为 `UiComponents.kt`、`Settings.kt`、`Scanner.kt`、`OsuTelemetry.kt` 及 `MainWindow.kt`，大幅提升二次开发与维护效率。
 
 ### 📡 VRChat OSC 参数表
-工具默认每 2 秒将以下参数推送到本地的 `127.0.0.1:9000` 端口：
+
+#### 1. 东方模式参数表
+推送到本地的 `127.0.0.1:9000` 端口：
 
 | 参数名称 | 数据类型 | 描述 |
 | :--- | :--- | :--- |
-| `/avatar/parameters/TouhouGameID` | `Int` | 游戏在支持列表中的索引（从 0 开始）。 |
+| `/avatar/parameters/TouhouGameID` | `Int` | 运行游戏在支持列表中的索引（从 0 开始）。 |
 | `/avatar/parameters/TouhouGameName` | `String` | 当前运行游戏的完整名称。 |
 | `/avatar/parameters/TouhouScore` | `Int` | 游戏当前分数（已还原倍率）。 |
 | `/avatar/parameters/TouhouMiss` | `Int` | 当前游玩会话中的累计死亡次数（Miss数）。 |
-| `/avatar/parameters/TouhouBomb` | `Int` | 当前游玩会话中的累计炸弹使用次数（已适配 TH10/11 灵击）。 |
-| `/avatar/parameters/TouhouDifficulty` | `Int` | 难度的数值映射：`0` (Easy), `1` (Normal), `2` (Hard), `3` (Lunatic), `4` (Extra), `5` (Phantasm)。 |
-| `/avatar/parameters/TouhouDifficultyName` | `String` | 难度的文本名称（例如 `Normal`, `Lunatic`）。 |
+| `/avatar/parameters/TouhouBomb` | `Int` | 当前游玩会话中的累计炸弹使用次数。 |
+| `/avatar/parameters/TouhouDifficulty` | `Int` | 难度的数值映射：`0` (Easy) 到 `5` (Phantasm)。 |
+| `/avatar/parameters/TouhouDifficultyName` | `String` | 难度的文本名称（例如 `Lunatic`）。 |
+| `/avatar/parameters/TouhouCharacter` | `Int` | 人物角色 ID 索引。 |
+| `/avatar/parameters/TouhouSubshot` | `Int` | 子弹类型 ID 索引。 |
+| `/avatar/parameters/TouhouCharacterName` | `String` | 角色与子弹类型文本名称（例如 `Reimu A (Homing)`）。 |
 | `/avatar/parameters/TouhouStage` | `Int` | 标准化后的关卡数：`1`-`6` 为主线关卡，`7` 为 Extra，`8` 为 Phantasm。 |
-| `/chatbox/input` | `String, Bool, Bool` | 发送格式化后的游玩状态文本至聊天框。例如：<br>`Game: <游戏名> [<难度>] | Stage: <关卡> | Score: <分数> | Miss: <死亡数> | Bomb: <炸弹数>` |
+| `/avatar/parameters/TouhouGraze` | `Int` | 当前擦弹数（Graze）。 |
+| `/avatar/parameters/TouhouPower` | `Float` | 当前火力值（标准化后映射至 `0.0` - `4.0` / `8.0`）。 |
+| `/avatar/parameters/TouhouPowerRaw` | `Int` | 内存中原始的火力值整数。 |
+| `/avatar/parameters/TouhouPoint` | `Int` | 当前得分道具价值（PIV）。 |
+| `/avatar/parameters/TouhouCherryMax` | `Int` | 当前最大樱点（TH07）。 |
+| `/avatar/parameters/TouhouSpellID` | `Int` | 当前正在交战的符卡 ID（未处于符卡战时为 `-1`）。 |
+| `/avatar/parameters/TouhouSpellActive` | `Bool` | 当前是否处于符卡战中。 |
+| `/avatar/parameters/TouhouSpellName` | `String` | 正在交战的符卡名称。 |
+| `/chatbox/input` | `String, Bool, Bool` | 发送格式化文本：`正在玩: <游戏名> [<难度>] | 机体: <机体> | 关卡: <关卡> | 分数: <分数> | Miss: <死亡数> | Bomb: <炸弹数>` |
+
+#### 2. osu! 模式参数表
+推送到本地的 `127.0.0.1:9000` 端口：
+
+| 参数名称 | 数据类型 | 描述 |
+| :--- | :--- | :--- |
+| `/avatar/parameters/OsuStatus` | `Int` | 游玩状态：`2` (Menu), `4` (Playing) 等。 |
+| `/avatar/parameters/OsuScore` | `Int` | 谱面当前得分。 |
+| `/avatar/parameters/OsuCombo` | `Int` | 当前连击数。 |
+| `/avatar/parameters/OsuMaxCombo` | `Int` | 当前谱面达到的最大连击数。 |
+| `/avatar/parameters/OsuAccuracy` | `Float` | 游玩准确率（已归一化，范围为 `0.0f` 至 `1.0f`）。 |
+| `/avatar/parameters/OsuMiss` | `Int` | 谱面当前 Miss 次数。 |
+| `/avatar/parameters/OsuGrade` | `String` | 当前评级字母（例如 `SS`, `SH`, `A`）。 |
+| `/avatar/parameters/OsuBPM` | `Float` | 谱面的每分钟节拍数（BPM）。 |
+| `/avatar/parameters/OsuStars` | `Float` | 模组折算后的谱面星数（SR）。 |
+| `/avatar/parameters/OsuHP` | `Float` | 归一化后的血条数值（范围为 `0.0f` - `1.0f`）。 |
+| `/avatar/parameters/OsuPPCurrent` | `Float` | 实时计算已获得的 Performance Points (PP)。 |
+| `/avatar/parameters/OsuPPFC` | `Float` | Full Combo（无失误）状态下的理论最大 PP。 |
+| `/avatar/parameters/OsuModsNum` | `Int` | 活动模组的原始二进制位移表示整数。 |
+| `/avatar/parameters/OsuModsStr` | `String` | 活动模组文本表现（例如 `HDDT`）。 |
+| `/avatar/parameters/OsuHit300` | `Int` | 300 击中次数。 |
+| `/avatar/parameters/OsuHit100` | `Int` | 100 击中次数. |
+| `/avatar/parameters/OsuHit50` | `Int` | 50 击中次数。 |
+| `/chatbox/input` | `String, Bool, Bool` | 发送格式化文本：`[osu!] 正在玩: <Artist> - <Title> [<Diff>] (<Stars>*) [<Mods>] | Combo: <Combo>x | PP: <PP>/<PP_FC> | Acc: <Acc>% | Miss: <Miss>` |
 
 ### 🛠️ 手动构建
 - **前提条件**：已安装 JDK 17 或更高版本。
@@ -89,38 +166,35 @@ THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's defau
   ```powershell
   ./gradlew shadowJar
   ```
-  输出文件：`build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar`
 - **构建独立免安装 EXE**：
   ```powershell
   ./gradlew jpackage
-  ```
-  输出路径：`build/jpackage/THOSC_BOX/`（包含生成的 `THOSC_BOX.exe` 及内置的轻量级运行时环境）。
-
-### 🚀 如何运行
-- **方式一（下载发行版 - 推荐）**：直接从 [GitHub Releases](https://github.com/XZto502/THOSC_BOX/releases) 页面下载最新编译好的压缩包，解压后双击运行 `THOSC_BOX.exe`。
-- **方式二（手动构建版）**：构建完成后，直接双击 `build/jpackage/THOSC_BOX/` 目录下的 `THOSC_BOX.exe`。
-- **方式三（命令行 JAR）**：使用命令行终端运行：
-  ```powershell
-  java -Dfile.encoding=UTF-8 -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
   ```
 
 ---
 
 ## 日本語
 
-**THOSC_BOX** は、東方Projectの公式メインライン原作ゲーム（TH06〜TH20）向けに設計された高精度な VRChat OSC 送信ツールです。ゲームメモリからスコア、被弾数（Miss）、ボム使用数、ステージ数、および難易度をリアルタイムに直接読み込み、OSC プロトコル経由で VRChat に送信することで、アバターパラメータを動的に制御したり、VRChat のチャットボックス（Chatbox）に現在のリアルタイムステータスを表示することができます。
+**THOSC_BOX** は、東方Projectの公式メインライン原作ゲーム（TH06〜TH20）および **osu!** 向けに設計された高精度な VRChat OSC 送信ツールです。ゲームメモリやローカル HTTP 遥測 API からスコア、被弾数（Miss）、ボム使用数、ステージ数、難易度、およびリアルタイム PP などを直接読み込み、OSC プロトコル経由で VRChat に送信することで、アバターパラメータを動的に制御したり、VRChat のチャットボックス（Chatbox）に現在のリアルタイムステータスを表示することができます。
 
 ### 🌟 主な機能
-- **幅広い公式作品に対応**：**東方紅魔郷 (TH06)** から最新作 **東方錦上京 (TH20)** までの計15作品にネイティブ対応しています。
-- **リアルタイムなゲームデータ同期**：
-  - **スコア (Score)**：メモリからスコアを取得し、ゲームごとの倍率を自動で復元。
-  - **被弾（Miss）とボム（Bomb）の累積カウント**：ゲーム開始・リトライ時に自動リセットされる累計被弾数・ボム使用数を集計（TH10/TH11のパワー消費型ボムも最適化判定）。
-  - **ステージと難易度**：現在の難易度（Easy, Normal, Hard, Lunatic, Extra, Phantasm）および現在のステージ数を自動検知。
-- **ASLR 対応**：Steam版などの ASLR（アドレス空間配置のランダム化）モジュールベース自動解析。
-- **軽量かつ高安定性**：JNAを用いた安全な読み取り専用メモリ書き込み不要のアプローチを採用。ゲームをクラッシュさせたり負荷を与えることはありません。
+- **複数モードの動的切り替え**：UI ヘッダーのボタンにより、**東方モード** と **osu! モード** をワンクリックで切り替えます。
+- **幅広い公式作品に対応**：**東方紅魔郷 (TH06)** から最新作 **東方錦上京 (TH20)** までの計 15 作品に対応。
+- **osu! ライブデータの同期**：
+  - ローカル HTTP API (`gosumemory` / `tosu`) からゲーム情報を自動で取得します。
+  - **自動起動と終了**：osu! モード開始時にツールがバックグラウンドで `gosumemory.exe` や `tosu.exe` を自動検索・起動し、終了時にそのプロセスを自動でクリーンアップします。
+  - 統計機能：リアルタイム PP、精度、コンボ、判定数 (300/100/50)、星数、BPM、HP ゲージ、アクティブ Mod (文字列/整数)、および現在のランク。
+- **東方メモリ拡張データ解析**：
+  - スコア、累計被弾数、ボム使用数、ステージ数、難易度、キャラクター/装備、グレイズ（Graze）、パワー（Power）、得点アイテム（PIV）、最大桜点（TH07）、および交戦中のスペルカード ID・名前をリアルタイム取得。
+- **MD3 UI テーマカスタマイザー**：
+  - 設定パネルからテーマカラーを選択できます。カスタム Hex コードと MD3 パレットグリッドに対応。明るさに応じて前景色を自動計算し、UI コンポーネントの色調を瞬時に反映、`settings.json` に設定を保存します。
+- **ASLR 対応と高安定性**：Steam 版などの ASLR 基址の自動解析。JNA を用いた安全な読み取り専用メモリ参照により、ゲームをクラッシュさせたり負荷を与えることはありません。
+- **モジュール化されたソースコード**：巨大な `Main.kt` は `UiComponents.kt`、`Settings.kt`、`Scanner.kt`、`OsuTelemetry.kt`、および `MainWindow.kt` に綺麗に分割され、拡張性と保守性を向上しました。
 
 ### 📡 VRChat OSC パラメーター
-本ツールはデフォルトで2秒ごとに以下のパラメーターを `127.0.0.1:9000`（VRChatのデフォルト入力ポート）へ送信します：
+
+#### 1. 東方モード パラメーター
+`127.0.0.1:9000` 宛てに送信されます：
 
 | パラメーター名 | データ型 | 説明 |
 | :--- | :--- | :--- |
@@ -128,11 +202,46 @@ THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's defau
 | `/avatar/parameters/TouhouGameName` | `String` | 実行中のゲームのタイトル。 |
 | `/avatar/parameters/TouhouScore` | `Int` | 現在のゲームスコア（倍率復元済み）。 |
 | `/avatar/parameters/TouhouMiss` | `Int` | 現在のプレイセッションでの累計被弾数（Miss数）。 |
-| `/avatar/parameters/TouhouBomb` | `Int` | 現在のプレイセッションでの累計ボム使用回数（TH10/11の霊撃もカウント）。 |
-| `/avatar/parameters/TouhouDifficulty` | `Int` | 難易度の数値マップ：`0` (Easy), `1` (Normal), `2` (Hard), `3` (Lunatic), `4` (Extra), `5` (Phantasm)。 |
-| `/avatar/parameters/TouhouDifficultyName` | `String` | 難易度の表示名（例：`Normal`, `Lunatic`）。 |
-| `/avatar/parameters/TouhouStage` | `Int` | 標準化された現在のステージ数：`1`〜`6`（通常ステージ）、`7`（Extra）、`8`（Phantasm）。 |
-| `/chatbox/input` | `String, Bool, Bool` | 現在のゲームステータステキストを Chatbox へ送信します。出力例：<br>`Game: <ゲーム名> [<難易度>] | Stage: <ステージ> | Score: <スコア> | Miss: <被弾数> | Bomb: <ボム数>` |
+| `/avatar/parameters/TouhouBomb` | `Int` | 現在のプレイセッションでの累計ボム使用回数。 |
+| `/avatar/parameters/TouhouDifficulty` | `Int` | 難易度の数値マップ：`0` (Easy) から `5` (Phantasm)。 |
+| `/avatar/parameters/TouhouDifficultyName` | `String` | 難易度の表示名（例：`Lunatic`）。 |
+| `/avatar/parameters/TouhouCharacter` | `Int` | キャラクター ID インデックス。 |
+| `/avatar/parameters/TouhouSubshot` | `Int` | サブショット ID インデックス。 |
+| `/avatar/parameters/TouhouCharacterName` | `String` | キャラクターおよび装備の表示名（例：`Reimu A (Homing)`）。 |
+| `/avatar/parameters/TouhouStage` | `Int` | 標準化されたステージ数：`1`〜`6`（主線）、`7`（Extra）、`8`（Phantasm）。 |
+| `/avatar/parameters/TouhouGraze` | `Int` | 現在のグレイズ数（Graze）。 |
+| `/avatar/parameters/TouhouPower` | `Float` | 現在のパワー（`0.0` - `4.0` / `8.0` に正規化）。 |
+| `/avatar/parameters/TouhouPowerRaw` | `Int` | メモリ内の生のパワー値整数。 |
+| `/avatar/parameters/TouhouPoint` | `Int` | 得点アイテム値（PIV）。 |
+| `/avatar/parameters/TouhouCherryMax` | `Int` | 現在の最大桜点（TH07）。 |
+| `/avatar/parameters/TouhouSpellID` | `Int` | 対戦中のスペルカード ID（通常時は `-1`）。 |
+| `/avatar/parameters/TouhouSpellActive` | `Bool` | スペルカード戦中かどうかの真偽値。 |
+| `/avatar/parameters/TouhouSpellName` | `String` | 対戦中のスペルカードの名前。 |
+| `/chatbox/input` | `String, Bool, Bool` | ステータステキスト送信例：`プレイ中: <ゲーム名> [<難易度>] | 自機: <自機> | ステージ: <ステージ> | スコア: <スコア> | 被弾: <被弾数> | ボム: <ボム数>` |
+
+#### 2. osu! モード パラメーター
+`127.0.0.1:9000` 宛てに送信されます：
+
+| パラメーター名 | データ型 | 説明 |
+| :--- | :--- | :--- |
+| `/avatar/parameters/OsuStatus` | `Int` | プレイステータス：`2` (Menu), `4` (Playing) など。 |
+| `/avatar/parameters/OsuScore` | `Int` | 譜面の現在スコア。 |
+| `/avatar/parameters/OsuCombo` | `Int` | 現在のコンボ数。 |
+| `/avatar/parameters/OsuMaxCombo` | `Int` | 現在の譜面で達成した最大コンボ数。 |
+| `/avatar/parameters/OsuAccuracy` | `Float` | プレイ精度（`0.0f` 〜 `1.0f` に正規化）。 |
+| `/avatar/parameters/OsuMiss` | `Int` | 譜面の現在ミス回数。 |
+| `/avatar/parameters/OsuGrade` | `String` | 現在の評価（例：`SS`, `SH`, `A`）。 |
+| `/avatar/parameters/OsuBPM` | `Float` | 譜面の Beats Per Minute (BPM)。 |
+| `/avatar/parameters/OsuStars` | `Float` | Mod 適用後の難易度（星数 SR）。 |
+| `/avatar/parameters/OsuHP` | `Float` | 正規化された残り HP ゲージ（`0.0f` - `1.0f`）。 |
+| `/avatar/parameters/OsuPPCurrent` | `Float` | リアルタイムで獲得したパフォーマンスポイント (PP)。 |
+| `/avatar/parameters/OsuPPFC` | `Float` | フルコンボ（ノーミス）達成時の理論最大 PP。 |
+| `/avatar/parameters/OsuModsNum` | `Int` | アグティブな Mod のビットマスク整数。 |
+| `/avatar/parameters/OsuModsStr` | `String` | アグティブな Mod の文字列（例：`HDDT`）。 |
+| `/avatar/parameters/OsuHit300` | `Int` | 300 ヒット数。 |
+| `/avatar/parameters/OsuHit100` | `Int` | 100 ヒット数。 |
+| `/avatar/parameters/OsuHit50` | `Int` | 50 ヒット数。 |
+| `/chatbox/input` | `String, Bool, Bool` | ステータステキスト送信例：`[osu!] プレイ中: <Artist> - <Title> [<Diff>] (<Stars>*) [<Mods>] | Combo: <Combo>x | PP: <PP>/<PP_FC> | Acc: <Acc>% | Miss: <Miss>` |
 
 ### 🛠️ ソースコードからのビルド
 - **システム要件**: JDK 17 以上。
@@ -140,19 +249,9 @@ THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's defau
   ```powershell
   ./gradlew shadowJar
   ```
-  生成ファイル: `build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar`
 - **スタンドアロン EXE のビルド**:
   ```powershell
   ./gradlew jpackage
-  ```
-  生成ディレクトリ: `build/jpackage/THOSC_BOX/` (独立動作可能な EXE と軽量 JRE ランタイムが含まれます)。
-
-### 🚀 実行方法
-- **方法 1（リリース版をダウンロード - 推奨）**: [GitHub Releases](https://github.com/XZto502/THOSC_BOX/releases) ページから最新ビルド済みの ZIP をダウンロードし、解凍して `THOSC_BOX.exe` をダブルクリックして起動します。
-- **方法 2（自分でビルドした EXE）**: ビルド後、`build/jpackage/THOSC_BOX/` ディレクトリ内の `THOSC_BOX.exe` を起動します。
-- **方法 3（JAR ファイルによる起動）**: 端末から以下のように起動します：
-  ```powershell
-  java -Dfile.encoding=UTF-8 -jar build/libs/THOSC_BOX-1.0-SNAPSHOT-all.jar
   ```
 
 ---
@@ -171,9 +270,9 @@ THOSC_BOX broadcasts OSC messages to local port `127.0.0.1:9000` (VRChat's defau
 10. **TH15**: Legacy of Lunatic Kingdom | 东方绀珠传 | 東方紺珠伝 (`th15.exe`)
 11. **TH16**: Hidden Star in Four Seasons | 东方天空璋 | 東方天空璋 (`th16.exe`)
 12. **TH17**: Wily Beast and Weakest Creature | 东方鬼形兽 | 東方鬼形獣 (`th17.exe`)
-13. **TH18**: Unconnected Marketeers | 东方虹龙洞 | 東方虹龍洞 (`th18.exe`)
+18. **TH18**: Unconnected Marketeers | 东方虹龙洞 | 東方虹龍洞 (`th18.exe`)
 14. **TH19**: Unfinished Dream of All Living Ghost | 东方兽王园 | 東方獣王園 (`th19.exe`)
-15. **TH20**: Fossilized Wonders | 东方锦上京 | 东方锦上京 (`th20.exe`)
+15. **TH20**: Fossilized Wonders | 东方锦上京 | 東方錦上京 (`th20.exe`)
 
 ---
 
