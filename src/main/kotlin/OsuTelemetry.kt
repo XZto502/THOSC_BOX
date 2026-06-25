@@ -191,15 +191,55 @@ fun runOsuScannerLoop() {
                     if (state != lastOsuState || miss != lastOsuMiss || (now - lastChatboxTime > 8000)) {
                         val ppCurrentStr = String.format(java.util.Locale.US, "%.0f", ppCurrent)
                         val ppFcStr = String.format(java.util.Locale.US, "%.0f", ppFc)
-                        val chatboxText = when (activeLang) {
-                            "zh" -> "[osu!] 正在玩: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) [$modsStr] | Combo: ${currentCombo}x | PP: $ppCurrentStr/$ppFcStr | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
-                            "ja" -> "[osu!] プレイ中: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) [$modsStr] | Combo: ${currentCombo}x | PP: $ppCurrentStr/$ppFcStr | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
-                            else -> "[osu!] Playing: $artist - $title [$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*) [$modsStr] | Combo: ${currentCombo}x | PP: $ppCurrentStr/$ppFcStr | Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)} | Miss: $miss"
+                        
+                        val parts = mutableListOf<String>()
+                        val gameStr = if (activeChatboxShowGame) {
+                            when (activeLang) {
+                                "zh" -> "正在玩: $artist - $title"
+                                "ja" -> "プレイ中: $artist - $title"
+                                else -> "Playing: $artist - $title"
+                            }
+                        } else null
+
+                        val stageStr = if (activeChatboxShowStage) {
+                            "[$difficulty] (${String.format(java.util.Locale.US, "%.2f", stars)}*)"
+                        } else null
+
+                        val charaStr = if (activeChatboxShowChara && modsStr.isNotEmpty()) {
+                            "[$modsStr]"
+                        } else null
+
+                        val songInfoParts = mutableListOf<String>()
+                        if (gameStr != null) songInfoParts.add(gameStr)
+                        if (stageStr != null) songInfoParts.add(stageStr)
+                        if (charaStr != null) songInfoParts.add(charaStr)
+
+                        if (songInfoParts.isNotEmpty()) {
+                            parts.add(songInfoParts.joinToString(" "))
                         }
-                        try {
-                            activeOscSender?.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
-                        } catch (e: Exception) {
-                            // Ignore
+
+                        if (activeChatboxShowBomb) {
+                            parts.add("Combo: ${currentCombo}x")
+                        }
+                        if (activeChatboxShowScore) {
+                            parts.add("PP: $ppCurrentStr/$ppFcStr")
+                        }
+                        if (activeChatboxShowAcc) {
+                            parts.add("Acc: ${String.format(java.util.Locale.US, "%.2f%%", accuracy)}")
+                        }
+                        if (activeChatboxShowMiss) {
+                            parts.add("Miss: $miss")
+                        }
+
+                        val contentText = parts.joinToString(" | ")
+                        val chatboxText = if (contentText.isNotEmpty()) "[osu!] $contentText" else ""
+
+                        if (chatboxText.isNotEmpty()) {
+                            try {
+                                activeOscSender?.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
+                            } catch (e: Exception) {
+                                // Ignore
+                            }
                         }
                         lastChatboxTime = now
                         lastOsuState = state

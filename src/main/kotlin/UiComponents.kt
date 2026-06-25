@@ -482,8 +482,31 @@ class MD3CheckboxIcon(val size: Int = 18) : javax.swing.Icon {
         val isSelected = if (c is javax.swing.JCheckBox) c.isSelected else false
         val isPressed = if (c is javax.swing.AbstractButton) c.model.isPressed else false
         val isHovered = if (c is javax.swing.AbstractButton) c.model.isRollover else false
+        val isEnabled = c?.isEnabled ?: true
 
-        if (isSelected) {
+        if (!isEnabled) {
+            if (isSelected) {
+                g2d.color = Color(MD3Color.Outline.red, MD3Color.Outline.green, MD3Color.Outline.blue, 120)
+                g2d.fillRoundRect(x + 1, y + 1, size - 2, size - 2, 4, 4)
+
+                g2d.color = MD3Color.Surface
+                g2d.stroke = java.awt.BasicStroke(2.0f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND)
+                
+                val px1 = x + (0.28 * size).toInt()
+                val py1 = y + (0.5 * size).toInt()
+                val px2 = x + (0.45 * size).toInt()
+                val py2 = y + (0.7 * size).toInt()
+                val px3 = x + (0.75 * size).toInt()
+                val py3 = y + (0.3 * size).toInt()
+
+                g2d.drawLine(px1, py1, px2, py2)
+                g2d.drawLine(px2, py2, px3, py3)
+            } else {
+                g2d.color = Color(MD3Color.Outline.red, MD3Color.Outline.green, MD3Color.Outline.blue, 80)
+                g2d.stroke = java.awt.BasicStroke(1.5f)
+                g2d.drawRoundRect(x + 1, y + 1, size - 3, size - 3, 4, 4)
+            }
+        } else if (isSelected) {
             g2d.color = if (isPressed) MD3Color.Primary.darker() else if (isHovered) MD3Color.Primary.brighter() else MD3Color.Primary
             g2d.fillRoundRect(x + 1, y + 1, size - 2, size - 2, 4, 4)
 

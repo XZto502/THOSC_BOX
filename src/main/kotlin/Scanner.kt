@@ -681,15 +681,40 @@ fun runScannerLoop(games: List<GameConfig>) {
 
                     if (now - lastChatboxTime >= 2000) {
                         if (activeEnableChatbox) {
-                            val chatboxText = when (activeLang) {
-                                "zh" -> "正在玩: $gameNameWithDiff | 机体: $characterName | 关卡: $stageStr | 分数: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
-                                "ja" -> "プレイ中: $gameNameWithDiff | 自機: $characterName | ステージ: $stageStr | スコア: $score | 被弾: $cumulativeMisses | ボム: $cumulativeBombs"
-                                else -> "Playing: $gameNameWithDiff | Chara: $characterName | Stage: $stageStr | Score: $score | Miss: $cumulativeMisses | Bomb: $cumulativeBombs"
+                            val parts = mutableListOf<String>()
+                            when (activeLang) {
+                                "zh" -> {
+                                    if (activeChatboxShowGame) parts.add("正在玩: $gameNameWithDiff")
+                                    if (activeChatboxShowChara) parts.add("机体: $characterName")
+                                    if (activeChatboxShowStage) parts.add("关卡: $stageStr")
+                                    if (activeChatboxShowScore) parts.add("分数: $score")
+                                    if (activeChatboxShowMiss) parts.add("Miss: $cumulativeMisses")
+                                    if (activeChatboxShowBomb) parts.add("Bomb: $cumulativeBombs")
+                                }
+                                "ja" -> {
+                                    if (activeChatboxShowGame) parts.add("プレイ中: $gameNameWithDiff")
+                                    if (activeChatboxShowChara) parts.add("自機: $characterName")
+                                    if (activeChatboxShowStage) parts.add("ステージ: $stageStr")
+                                    if (activeChatboxShowScore) parts.add("スコア: $score")
+                                    if (activeChatboxShowMiss) parts.add("被弾: $cumulativeMisses")
+                                    if (activeChatboxShowBomb) parts.add("ボム: $cumulativeBombs")
+                                }
+                                else -> {
+                                    if (activeChatboxShowGame) parts.add("Playing: $gameNameWithDiff")
+                                    if (activeChatboxShowChara) parts.add("Chara: $characterName")
+                                    if (activeChatboxShowStage) parts.add("Stage: $stageStr")
+                                    if (activeChatboxShowScore) parts.add("Score: $score")
+                                    if (activeChatboxShowMiss) parts.add("Miss: $cumulativeMisses")
+                                    if (activeChatboxShowBomb) parts.add("Bomb: $cumulativeBombs")
+                                }
                             }
-                            try {
-                                activeOscSender?.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
-                            } catch (e: Exception) {
-                                // Ignore
+                            val chatboxText = parts.joinToString(" | ")
+                            if (chatboxText.isNotEmpty()) {
+                                try {
+                                    activeOscSender?.send(OSCMessage("/chatbox/input", listOf(chatboxText, true, false)))
+                                } catch (e: Exception) {
+                                    // Ignore
+                                }
                             }
                         }
                         lastChatboxTime = now

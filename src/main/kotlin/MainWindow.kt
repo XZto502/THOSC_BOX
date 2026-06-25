@@ -52,6 +52,13 @@ class MainWindow : javax.swing.JFrame() {
     val portLabel = javax.swing.JLabel()
     val portField = MD3TextField(8)
     val chatboxCheckBox = javax.swing.JCheckBox()
+    val cbShowGame = javax.swing.JCheckBox()
+    val cbShowChara = javax.swing.JCheckBox()
+    val cbShowStage = javax.swing.JCheckBox()
+    val cbShowScore = javax.swing.JCheckBox()
+    val cbShowMiss = javax.swing.JCheckBox()
+    val cbShowBomb = javax.swing.JCheckBox()
+    val cbShowAcc = javax.swing.JCheckBox()
     val themeColorLabel = javax.swing.JLabel()
     val btnChooseColor = MD3Button("", MD3Button.ButtonType.OUTLINED, radius = 12)
     val btnSaveSettings = MD3Button("Save Settings", MD3Button.ButtonType.FILLED)
@@ -281,9 +288,35 @@ class MainWindow : javax.swing.JFrame() {
         }
         settingsCard.add(chatboxCheckBox, gbc)
 
-        // Theme color row
+        // Chatbox options sub-panel
+        val chatboxOptionsPanel = javax.swing.JPanel(java.awt.GridLayout(0, 2, 16, 8)).apply {
+            background = MD3Color.Surface
+            isOpaque = false
+            border = javax.swing.BorderFactory.createEmptyBorder(4, 24, 8, 8)
+        }
+        val detailCheckboxes = listOf(cbShowGame, cbShowChara, cbShowStage, cbShowScore, cbShowMiss, cbShowBomb, cbShowAcc)
+        detailCheckboxes.forEach { cb ->
+            cb.apply {
+                background = MD3Color.Surface
+                foreground = MD3Color.TextPrimary
+                isFocusable = false
+                isRolloverEnabled = true
+                icon = MD3CheckboxIcon()
+                iconTextGap = 8
+                font = getAppFont(Font.PLAIN, 14)
+            }
+            chatboxOptionsPanel.add(cb)
+        }
+
         gbc.gridx = 0
         gbc.gridy = 3
+        gbc.gridwidth = 2
+        gbc.weightx = 1.0
+        settingsCard.add(chatboxOptionsPanel, gbc)
+
+        // Theme color row
+        gbc.gridx = 0
+        gbc.gridy = 4
         gbc.gridwidth = 1
         gbc.weightx = 0.3
         themeColorLabel.foreground = MD3Color.TextPrimary
@@ -332,7 +365,7 @@ class MainWindow : javax.swing.JFrame() {
         }
 
         gbc.gridx = 0
-        gbc.gridy = 4
+        gbc.gridy = 5
         gbc.gridwidth = 2
         gbc.weightx = 1.0
         gbc.insets = Insets(16, 8, 8, 8)
@@ -393,6 +426,29 @@ class MainWindow : javax.swing.JFrame() {
         langComboBox.selectedIndex = initialIndex
         portField.text = activeOscPort.toString()
         chatboxCheckBox.isSelected = activeEnableChatbox
+        cbShowGame.isSelected = activeChatboxShowGame
+        cbShowChara.isSelected = activeChatboxShowChara
+        cbShowStage.isSelected = activeChatboxShowStage
+        cbShowScore.isSelected = activeChatboxShowScore
+        cbShowMiss.isSelected = activeChatboxShowMiss
+        cbShowBomb.isSelected = activeChatboxShowBomb
+        cbShowAcc.isSelected = activeChatboxShowAcc
+
+        val updateOptionsEnabledState = {
+            val isEnabled = chatboxCheckBox.isSelected
+            cbShowGame.isEnabled = isEnabled
+            cbShowChara.isEnabled = isEnabled
+            cbShowStage.isEnabled = isEnabled
+            cbShowScore.isEnabled = isEnabled
+            cbShowMiss.isEnabled = isEnabled
+            cbShowBomb.isEnabled = isEnabled
+            cbShowAcc.isEnabled = isEnabled
+        }
+        updateOptionsEnabledState()
+
+        chatboxCheckBox.addActionListener {
+            updateOptionsEnabledState()
+        }
 
         btnSaveSettings.addActionListener {
             val selectedLang = when (langComboBox.selectedIndex) {
@@ -404,7 +460,11 @@ class MainWindow : javax.swing.JFrame() {
             val enteredPort = portField.text.toIntOrNull() ?: 9000
             val isChatboxEnabled = chatboxCheckBox.isSelected
 
-            changeSettings(selectedLang, enteredPort, isChatboxEnabled)
+            changeSettings(
+                selectedLang, enteredPort, isChatboxEnabled,
+                cbShowGame.isSelected, cbShowChara.isSelected, cbShowStage.isSelected,
+                cbShowScore.isSelected, cbShowMiss.isSelected, cbShowBomb.isSelected, cbShowAcc.isSelected
+            )
 
             showMD3MessageDialog(
                 this@MainWindow,
@@ -456,6 +516,13 @@ class MainWindow : javax.swing.JFrame() {
         langLabel.text = getLocalizedString("settings_lang", activeLang)
         portLabel.text = getLocalizedString("settings_port", activeLang)
         chatboxCheckBox.text = getLocalizedString("settings_chatbox", activeLang)
+        cbShowGame.text = getLocalizedString("settings_chatbox_game", activeLang)
+        cbShowChara.text = getLocalizedString("settings_chatbox_chara", activeLang)
+        cbShowStage.text = getLocalizedString("settings_chatbox_stage", activeLang)
+        cbShowScore.text = getLocalizedString("settings_chatbox_score", activeLang)
+        cbShowMiss.text = getLocalizedString("settings_chatbox_miss", activeLang)
+        cbShowBomb.text = getLocalizedString("settings_chatbox_bomb", activeLang)
+        cbShowAcc.text = getLocalizedString("settings_chatbox_acc", activeLang)
         themeColorLabel.text = when (activeLang) {
             "zh" -> "主题颜色"
             "ja" -> "テーマカラー"

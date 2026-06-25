@@ -10,7 +10,14 @@ data class Settings(
     val oscPort: Int = 9000,
     val enableChatbox: Boolean = true,
     val appMode: String = "touhou",
-    val themeColorHex: String = "#D0BCFF"
+    val themeColorHex: String = "#D0BCFF",
+    val chatboxShowGame: Boolean = true,
+    val chatboxShowChara: Boolean = true,
+    val chatboxShowStage: Boolean = true,
+    val chatboxShowScore: Boolean = true,
+    val chatboxShowMiss: Boolean = true,
+    val chatboxShowBomb: Boolean = true,
+    val chatboxShowAcc: Boolean = true
 )
 
 @Volatile
@@ -27,6 +34,27 @@ var activeMode: String = "touhou"
 
 @Volatile
 var activeThemeColorHex: String = "#D0BCFF"
+
+@Volatile
+var activeChatboxShowGame: Boolean = true
+
+@Volatile
+var activeChatboxShowChara: Boolean = true
+
+@Volatile
+var activeChatboxShowStage: Boolean = true
+
+@Volatile
+var activeChatboxShowScore: Boolean = true
+
+@Volatile
+var activeChatboxShowMiss: Boolean = true
+
+@Volatile
+var activeChatboxShowBomb: Boolean = true
+
+@Volatile
+var activeChatboxShowAcc: Boolean = true
 
 fun parseHexColor(hex: String): Color? {
     return try {
@@ -53,6 +81,13 @@ fun selectLanguage(): String {
                 activeEnableChatbox = settings.enableChatbox
                 activeMode = settings.appMode
                 activeThemeColorHex = settings.themeColorHex
+                activeChatboxShowGame = settings.chatboxShowGame
+                activeChatboxShowChara = settings.chatboxShowChara
+                activeChatboxShowStage = settings.chatboxShowStage
+                activeChatboxShowScore = settings.chatboxShowScore
+                activeChatboxShowMiss = settings.chatboxShowMiss
+                activeChatboxShowBomb = settings.chatboxShowBomb
+                activeChatboxShowAcc = settings.chatboxShowAcc
                 parseHexColor(settings.themeColorHex)?.let { MD3Color.updateThemeColor(it) }
                 return settings.language
             }
@@ -189,7 +224,11 @@ fun selectLanguage(): String {
     }
 
     try {
-        val settings = Settings(choice, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex)
+        val settings = Settings(
+            choice, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex,
+            activeChatboxShowGame, activeChatboxShowChara, activeChatboxShowStage, activeChatboxShowScore,
+            activeChatboxShowMiss, activeChatboxShowBomb, activeChatboxShowAcc
+        )
         configFile.writeText(Json.encodeToString(settings))
         val successMsg = when (choice) {
             "zh" -> "语言已设置为：简体中文。配置文件已保存至 settings.json。"
@@ -210,7 +249,11 @@ fun changeThemeColor(color: Color) {
     MD3Color.updateThemeColor(color)
     activeThemeColorHex = color.toHex()
     try {
-        val settings = Settings(activeLang, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex)
+        val settings = Settings(
+            activeLang, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex,
+            activeChatboxShowGame, activeChatboxShowChara, activeChatboxShowStage, activeChatboxShowScore,
+            activeChatboxShowMiss, activeChatboxShowBomb, activeChatboxShowAcc
+        )
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         println("Warning: Failed to save settings.json: ${e.message}")
@@ -223,7 +266,11 @@ fun changeThemeColor(color: Color) {
 fun changeLanguage(lang: String) {
     activeLang = lang
     try {
-        val settings = Settings(lang, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex)
+        val settings = Settings(
+            lang, activeOscPort, activeEnableChatbox, activeMode, activeThemeColorHex,
+            activeChatboxShowGame, activeChatboxShowChara, activeChatboxShowStage, activeChatboxShowScore,
+            activeChatboxShowMiss, activeChatboxShowBomb, activeChatboxShowAcc
+        )
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         // Ignore
@@ -234,9 +281,27 @@ fun changeLanguage(lang: String) {
     }
 }
 
-fun changeSettings(lang: String, port: Int, enableChatbox: Boolean) {
+fun changeSettings(
+    lang: String,
+    port: Int,
+    enableChatbox: Boolean,
+    showGame: Boolean,
+    showChara: Boolean,
+    showStage: Boolean,
+    showScore: Boolean,
+    showMiss: Boolean,
+    showBomb: Boolean,
+    showAcc: Boolean
+) {
     activeLang = lang
     activeEnableChatbox = enableChatbox
+    activeChatboxShowGame = showGame
+    activeChatboxShowChara = showChara
+    activeChatboxShowStage = showStage
+    activeChatboxShowScore = showScore
+    activeChatboxShowMiss = showMiss
+    activeChatboxShowBomb = showBomb
+    activeChatboxShowAcc = showAcc
     
     if (activeOscPort != port) {
         activeOscPort = port
@@ -253,7 +318,10 @@ fun changeSettings(lang: String, port: Int, enableChatbox: Boolean) {
     }
 
     try {
-        val settings = Settings(lang, port, enableChatbox, activeMode, activeThemeColorHex)
+        val settings = Settings(
+            lang, port, enableChatbox, activeMode, activeThemeColorHex,
+            showGame, showChara, showStage, showScore, showMiss, showBomb, showAcc
+        )
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         println("Warning: Failed to save settings.json: ${e.message}")
@@ -268,7 +336,11 @@ fun changeSettings(lang: String, port: Int, enableChatbox: Boolean) {
 fun changeMode(mode: String) {
     activeMode = mode
     try {
-        val settings = Settings(activeLang, activeOscPort, activeEnableChatbox, mode, activeThemeColorHex)
+        val settings = Settings(
+            activeLang, activeOscPort, activeEnableChatbox, mode, activeThemeColorHex,
+            activeChatboxShowGame, activeChatboxShowChara, activeChatboxShowStage, activeChatboxShowScore,
+            activeChatboxShowMiss, activeChatboxShowBomb, activeChatboxShowAcc
+        )
         java.io.File("settings.json").writeText(Json.encodeToString(settings))
     } catch (e: Exception) {
         println("Warning: Failed to save settings.json: ${e.message}")
@@ -308,6 +380,14 @@ fun getLocalizedString(key: String, lang: String): String {
             "title_app" -> "Touhou VRChat OSC 桥接器"
             "btn_clear" -> "清除日志"
             "btn_copy" -> "复制日志"
+            "settings_chatbox_options" -> "聊天框内容定制"
+            "settings_chatbox_game" -> "显示 游戏/歌名"
+            "settings_chatbox_chara" -> "显示 机体/模组"
+            "settings_chatbox_stage" -> "显示 关卡/难度"
+            "settings_chatbox_score" -> "显示 分数/PP"
+            "settings_chatbox_miss" -> "显示 死亡/失误"
+            "settings_chatbox_bomb" -> "显示 炸弹/连击"
+            "settings_chatbox_acc" -> "显示 准确率"
             else -> key
         }
         "ja" -> when (key) {
@@ -335,6 +415,14 @@ fun getLocalizedString(key: String, lang: String): String {
             "title_app" -> "東方 VRChat OSC ブリッジ"
             "btn_clear" -> "ログ消去"
             "btn_copy" -> "ログコピー"
+            "settings_chatbox_options" -> "チャットボックス詳細設定"
+            "settings_chatbox_game" -> "ゲーム・曲名を表示"
+            "settings_chatbox_chara" -> "自機・Modを表示"
+            "settings_chatbox_stage" -> "ステージ・難易度を表示"
+            "settings_chatbox_score" -> "スコア・PPを表示"
+            "settings_chatbox_miss" -> "被弾・ミス数を表示"
+            "settings_chatbox_bomb" -> "ボム・コンボを表示"
+            "settings_chatbox_acc" -> "精度を表示"
             else -> key
         }
         else -> when (key) {
@@ -362,6 +450,14 @@ fun getLocalizedString(key: String, lang: String): String {
             "title_app" -> "Touhou VRChat OSC Bridge"
             "btn_clear" -> "Clear Logs"
             "btn_copy" -> "Copy Logs"
+            "settings_chatbox_options" -> "Chatbox Detail Settings"
+            "settings_chatbox_game" -> "Show Game/Song"
+            "settings_chatbox_chara" -> "Show Chara/Mods"
+            "settings_chatbox_stage" -> "Show Stage/Difficulty"
+            "settings_chatbox_score" -> "Show Score/PP"
+            "settings_chatbox_miss" -> "Show Misses"
+            "settings_chatbox_bomb" -> "Show Bomb/Combo"
+            "settings_chatbox_acc" -> "Show Accuracy"
             else -> key
         }
     }
